@@ -51,14 +51,23 @@ func main() {
 		Center: gocgl.Point{X: WIDTH / 2, Y: HEIGHT / 2},
 		Radius: FACTOR,
 	}
-	dx := 0.1
-	dy := 0.1
+	cdx := 0.1
+	cdy := 0.1
+
+	r := gocgl.Rectangle{
+		Points: [2]gocgl.Point{
+			{X: WIDTH / 4, Y: HEIGHT / 4},
+			{X: WIDTH / 4 * 3, Y: HEIGHT / 4 * 3},
+		},
+	}
 
 	var rps float64 = 0.1
 	last := sdl.GetTicks()
 
 	for handleEvents() {
 		engine.Image.FillWithColor(COLOR_BLK)
+
+		r.Render(engine.Image, COLOR_CYN_T)
 
 		curTicks := sdl.GetTicks()
 		ticks := curTicks - last
@@ -68,14 +77,14 @@ func main() {
 		t.Rotate(angle, t.Center())
 		t.Render(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
 
-		if c.Center.X+c.Radius > WIDTH || c.Center.X-c.Radius < 0 {
-			dx = -dx
+		if c.Center.X+c.Radius >= WIDTH || c.Center.X-c.Radius <= 0 {
+			cdx = -cdx
 		}
-		if c.Center.Y+c.Radius > HEIGHT || c.Center.Y-c.Radius < 0 {
-			dy = -dy
+		if c.Center.Y+c.Radius >= HEIGHT || c.Center.Y-c.Radius <= 0 {
+			cdy = -cdy
 		}
-		c.Center.X += dx * float64(ticks)
-		c.Center.Y += dy * float64(ticks)
+		c.Center.X += cdx * float64(ticks)
+		c.Center.Y += cdy * float64(ticks)
 		c.RenderAA(engine.Image, COLOR_CYN_T)
 
 		engine.Render()
