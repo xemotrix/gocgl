@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"math"
-	"time"
 
 	"github.com/xemotrix/gocgl"
 
@@ -11,7 +9,7 @@ import (
 )
 
 const (
-	FACTOR = 100
+	FACTOR = 20
 	WIDTH  = 16 * FACTOR
 	HEIGHT = 9 * FACTOR
 
@@ -39,18 +37,11 @@ func handleEvents() bool {
 func main() {
 	engine := gocgl.NewEngine(WIDTH, HEIGHT)
 
-	t1 := gocgl.TriangleZ{
-		Points: [3]*gocgl.PointZ{
-			{X: -1, Y: 1, Z: 1},
-			{X: 1, Y: 1, Z: 1},
-			{X: 0, Y: -1, Z: 1},
-		},
-	}
-	t2 := gocgl.TriangleZ{
-		Points: [3]*gocgl.PointZ{
-			{X: 0, Y: 1, Z: 0},
-			{X: 0, Y: 1, Z: 2},
-			{X: 0, Y: -1, Z: 1},
+	t1 := gocgl.Triangle{
+		Points: [3]gocgl.Point{
+			{X: -0.7, Y: 0.5},
+			{X: 0.5, Y: 0},
+			{X: 0.3, Y: -0.5},
 		},
 	}
 
@@ -58,7 +49,6 @@ func main() {
 	last := sdl.GetTicks()
 
 	for handleEvents() {
-		start := time.Now()
 		engine.Image.FillWithColor(COLOR_BLK)
 
 		curTicks := sdl.GetTicks()
@@ -66,14 +56,9 @@ func main() {
 		last = curTicks
 		angle := float64(ticks) * 2 * math.Pi * rps / 1000
 
-		t1.RotateY(0, 1, angle)
-		t1.RenderZ(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
-
-		t2.RotateY(0, 1, angle)
-		t2.RenderZ(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
+		t1.Rotate(angle, t1.Center())
+		t1.Render(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
 
 		engine.Render()
-
-		fmt.Println("Frame render time:", time.Since(start))
 	}
 }

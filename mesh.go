@@ -56,9 +56,9 @@ func (m *Mesh) RenderTriangleZ(
 	co2 := color >> 8 & 0xff
 	co3 := color & 0xff
 
-	pp1 := p1.Project(uint32(img.width), uint32(img.height))
-	pp2 := p2.Project(uint32(img.width), uint32(img.height))
-	pp3 := p3.Project(uint32(img.width), uint32(img.height))
+	pp1 := p1.Project(uint32(img.Width), uint32(img.Height))
+	pp2 := p2.Project(uint32(img.Width), uint32(img.Height))
+	pp3 := p3.Project(uint32(img.Width), uint32(img.Height))
 
 	x1, y1 := int32(pp1.X), int32(pp1.Y)
 	x2, y2 := int32(pp2.X), int32(pp2.Y)

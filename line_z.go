@@ -13,8 +13,8 @@ func (l *LineZ) Render(
 	img *Image,
 	color uint32,
 ) {
-	pp1 := l.P1.Project(uint32(img.width), uint32(img.height))
-	pp2 := l.P2.Project(uint32(img.width), uint32(img.height))
+	pp1 := l.P1.Project(uint32(img.Width), uint32(img.Height))
+	pp2 := l.P2.Project(uint32(img.Width), uint32(img.Height))
 
 	l2d := Line{
 		P1: pp1,

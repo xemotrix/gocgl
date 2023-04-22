@@ -16,7 +16,7 @@ func (t *Triangle) RenderTriangleBounds(
 	l3.Render(img, color)
 }
 
-func (t *Triangle) Center() Point {
+func (t *Triangle) Center() *Point {
 	x1, y1 := t.Points[0].X, t.Points[0].Y
 	x2, y2 := t.Points[1].X, t.Points[1].Y
 	x3, y3 := t.Points[2].X, t.Points[2].Y
@@ -25,7 +25,7 @@ func (t *Triangle) Center() Point {
 	x := x1 + third*(x2-x1) + third*(x3-x1)
 	y := y1 + third*(y2-y1) + third*(y3-y1)
 
-	return Point{x, y}
+	return &Point{x, y}
 }
 
 func (t *Triangle) BarycentricCoordinates(p Point) (l1, l2, l3 float64) {
@@ -54,10 +54,15 @@ func (t *Triangle) ColorFromBariCoords(c1, c2, c3 uint32, l1, l2, l3 float64) ui
 	return color
 }
 
-func (t *Triangle) Render(
+func (to *Triangle) Render(
 	img *Image,
 	co1, co2, co3 uint32,
 ) {
+	t := to.Copy()
+	t.Points[0].MapUp(img.Width, img.Height)
+	t.Points[1].MapUp(img.Width, img.Height)
+	t.Points[2].MapUp(img.Width, img.Height)
+
 	x1, y1 := int32(t.Points[0].X), int32(t.Points[0].Y)
 	x2, y2 := int32(t.Points[1].X), int32(t.Points[1].Y)
 	x3, y3 := int32(t.Points[2].X), int32(t.Points[2].Y)
@@ -72,12 +77,6 @@ func (t *Triangle) Render(
 			l1, l2, l3 := t.BarycentricCoordinates(Point{float64(x), float64(y)})
 			if l1 >= 0 && l2 >= 0 && l3 >= 0 {
 				color := t.ColorFromBariCoords(co1, co2, co3, l1, l2, l3)
-				r := byte(color>>16&0xff) / 20 * 20
-				g := byte(color>>8&0xff) / 20 * 20
-				b := byte(color&0xff) / 20 * 20
-				a := byte(color>>24&0xff) / 20 * 20
-				color = uint32(a)<<24 | uint32(r)<<16 | uint32(g)<<8 | uint32(b)
-
 				img.SetPixel(uint32(x), uint32(y), color)
 			}
 		}

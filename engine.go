@@ -27,7 +27,7 @@ func (e *Engine) Render() {
 	e.Texture.Update(
 		nil,
 		unsafe.Pointer(&e.Image.Arr[0]),
-		int(e.Image.width*4),
+		int(e.Image.Width*4),
 	)
 	e.Renderer.Copy(e.Texture, nil, nil)
 	e.Renderer.Present()
