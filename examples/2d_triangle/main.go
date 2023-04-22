@@ -21,6 +21,8 @@ const (
 	COLOR_YEL = 0xffffff00
 	COLOR_CYN = 0xff00ffff
 	COLOR_MAG = 0xffff00ff
+
+	COLOR_CYN_T = 0x7f00ffff
 )
 
 func handleEvents() bool {
@@ -37,13 +39,20 @@ func handleEvents() bool {
 func main() {
 	engine := gocgl.NewEngine(WIDTH, HEIGHT)
 
-	t1 := gocgl.Triangle{
+	t := gocgl.Triangle{
 		Points: [3]gocgl.Point{
 			{X: -0.7, Y: 0.5},
 			{X: 0.5, Y: 0},
 			{X: 0.3, Y: -0.5},
 		},
 	}
+
+	c := gocgl.Circle{
+		Center: gocgl.Point{X: WIDTH / 2, Y: HEIGHT / 2},
+		Radius: FACTOR,
+	}
+	dx := 0.1
+	dy := 0.1
 
 	var rps float64 = 0.1
 	last := sdl.GetTicks()
@@ -56,8 +65,18 @@ func main() {
 		last = curTicks
 		angle := float64(ticks) * 2 * math.Pi * rps / 1000
 
-		t1.Rotate(angle, t1.Center())
-		t1.Render(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
+		t.Rotate(angle, t.Center())
+		t.Render(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
+
+		if c.Center.X+c.Radius > WIDTH || c.Center.X-c.Radius < 0 {
+			dx = -dx
+		}
+		if c.Center.Y+c.Radius > HEIGHT || c.Center.Y-c.Radius < 0 {
+			dy = -dy
+		}
+		c.Center.X += dx * float64(ticks)
+		c.Center.Y += dy * float64(ticks)
+		c.RenderAA(engine.Image, COLOR_CYN_T)
 
 		engine.Render()
 	}
