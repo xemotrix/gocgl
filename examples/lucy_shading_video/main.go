@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/xemotrix/gocgl"
 
@@ -11,9 +10,11 @@ import (
 )
 
 const (
-	FACTOR = 100
-	WIDTH  = 16 * FACTOR
-	HEIGHT = 9 * FACTOR
+	FACTOR   = 100
+	WIDTH    = 16 * FACTOR
+	HEIGHT   = 9 * FACTOR
+	FPS      = 60
+	N_FRAMES = FPS * 10
 
 	COLOR_BLK = 0xff000000
 	COLOR_WHT = 0xffffffff
@@ -42,22 +43,22 @@ func main() {
 	m := gocgl.ParseObjFile("examples/example_data/lucy.obj")
 	m.FlipZY()
 
-	var rps float64 = 0.1
-	last := sdl.GetTicks()
+	var rps float64 = 0.05
+
+	counter := 0
 
 	for handleEvents() {
-		start := time.Now()
 		engine.Image.FillWithColor(COLOR_BLK)
 
-		curTicks := sdl.GetTicks()
-		ticks := curTicks - last
-		last = curTicks
-		angle := float64(ticks) * 2 * math.Pi * rps / 1000
+		angle := float64(FPS) * 2 * math.Pi * rps / 1000
 
 		m.RotateY(0, 1, angle)
 		m.Render(engine.Image, COLOR_WHT)
 
-		engine.Render()
-		fmt.Println("Frame render time:", time.Since(start))
+		engine.Image.WritePPM(fmt.Sprintf("lucy_frames/out%04d.ppm", counter))
+		counter++
+		if counter > N_FRAMES {
+			break
+		}
 	}
 }

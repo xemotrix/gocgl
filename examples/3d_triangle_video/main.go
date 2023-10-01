@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/xemotrix/gocgl"
 
@@ -11,9 +10,11 @@ import (
 )
 
 const (
-	FACTOR = 100
-	WIDTH  = 16 * FACTOR
-	HEIGHT = 9 * FACTOR
+	FACTOR   = 100
+	WIDTH    = 16 * FACTOR
+	HEIGHT   = 9 * FACTOR
+	FPS      = 60
+	N_FRAMES = FPS * 10
 
 	COLOR_BLK = 0xff000000
 	COLOR_WHT = 0xffffffff
@@ -54,17 +55,13 @@ func main() {
 		},
 	}
 
-	var rps float64 = 0.1
-	last := sdl.GetTicks()
+	var rps float64 = 0.05
+	var counter uint32 = 0
 
 	for handleEvents() {
-		start := time.Now()
 		engine.Image.FillWithColor(COLOR_BLK)
 
-		curTicks := sdl.GetTicks()
-		ticks := curTicks - last
-		last = curTicks
-		angle := float64(ticks) * 2 * math.Pi * rps / 1000
+		angle := float64(FPS) * 2 * math.Pi * rps / 1000
 
 		t1.RotateY(0, 1, angle)
 		t1.RenderZ(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
@@ -72,7 +69,10 @@ func main() {
 		t2.RotateY(0, 1, angle)
 		t2.RenderZ(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
 
-		engine.Render()
-		fmt.Println("Frame render time:", time.Since(start))
+		engine.Image.WritePPM(fmt.Sprintf("triangle3d_frames/out%04d.ppm", counter))
+		counter++
+		if counter >= N_FRAMES {
+			break
+		}
 	}
 }

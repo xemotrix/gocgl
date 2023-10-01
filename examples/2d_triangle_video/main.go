@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/xemotrix/gocgl"
@@ -9,9 +10,11 @@ import (
 )
 
 const (
-	FACTOR = 20
-	WIDTH  = 16 * FACTOR
-	HEIGHT = 9 * FACTOR
+	FACTOR   = 100
+	WIDTH    = 16 * FACTOR
+	HEIGHT   = 9 * FACTOR
+	FPS      = 60
+	N_FRAMES = FPS * 10
 
 	COLOR_BLK = 0xff000000
 	COLOR_WHT = 0xffffffff
@@ -61,17 +64,15 @@ func main() {
 	}
 
 	var rps float64 = 0.1
-	last := sdl.GetTicks()
+
+	var counter uint32 = 0
 
 	for handleEvents() {
 		engine.Image.FillWithColor(COLOR_BLK)
 
 		r.Render(engine.Image, COLOR_CYN_T)
 
-		curTicks := sdl.GetTicks()
-		ticks := curTicks - last
-		last = curTicks
-		angle := float64(ticks) * 2 * math.Pi * rps / 1000
+		angle := float64(FPS) * 2 * math.Pi * rps / 1000
 
 		t.Rotate(angle, t.Center())
 		t.Render(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
@@ -82,10 +83,15 @@ func main() {
 		if c.Center.Y+c.Radius >= HEIGHT || c.Center.Y-c.Radius <= 0 {
 			cdy = -cdy
 		}
-		c.Center.X += cdx * float64(ticks)
-		c.Center.Y += cdy * float64(ticks)
+		c.Center.X += cdx * float64(FPS) / 2
+		c.Center.Y += cdy * float64(FPS) / 2
 		c.RenderAA(engine.Image, COLOR_CYN_T)
 
-		engine.Render()
+		engine.Image.WritePPM(fmt.Sprintf("triangle_frames/out%04d.ppm", counter))
+		counter++
+		if counter >= N_FRAMES {
+			break
+		}
+
 	}
 }
