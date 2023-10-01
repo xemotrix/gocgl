@@ -96,9 +96,9 @@ func (img *Image) WritePPM(filePath string) error {
 	imgBytes := make([]byte, img.Width*img.Height*3)
 
 	for i := 0; i < len(img.Arr); i += PIXBYTES {
-		imgBytes[i/PIXBYTES*3] = img.Arr[i+1]
-		imgBytes[i/PIXBYTES*3+1] = img.Arr[i+2]
-		imgBytes[i/PIXBYTES*3+2] = img.Arr[i+3]
+		imgBytes[i/PIXBYTES*3] = img.Arr[i+2]
+		imgBytes[i/PIXBYTES*3+1] = img.Arr[i+1]
+		imgBytes[i/PIXBYTES*3+2] = img.Arr[i]
 	}
 	_, err = f.WriteAt(
 		imgBytes,

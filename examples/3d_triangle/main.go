@@ -56,6 +56,7 @@ func main() {
 
 	var rps float64 = 0.1
 	last := sdl.GetTicks()
+	counter := 0
 
 	for handleEvents() {
 		start := time.Now()
@@ -73,6 +74,8 @@ func main() {
 		t2.RenderZ(engine.Image, COLOR_MAG, COLOR_YEL, COLOR_CYN)
 
 		engine.Render()
+		engine.Image.WritePPM(fmt.Sprintf("triangle3d_frames/out%04d.ppm", counter))
+		counter++
 
 		fmt.Println("Frame render time:", time.Since(start))
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/xemotrix/gocgl"
@@ -30,7 +31,6 @@ func handleEvents() bool {
 		switch event.(type) {
 		case *sdl.QuitEvent:
 			return false
-
 		}
 	}
 	return true
@@ -64,6 +64,8 @@ func main() {
 	var rps float64 = 0.1
 	last := sdl.GetTicks()
 
+	counter := 0
+
 	for handleEvents() {
 		engine.Image.FillWithColor(COLOR_BLK)
 
@@ -88,5 +90,8 @@ func main() {
 		c.RenderAA(engine.Image, COLOR_CYN_T)
 
 		engine.Render()
+		engine.Image.WritePPM(fmt.Sprintf("triangle_frames/out%04d.ppm", counter))
+		counter++
+
 	}
 }

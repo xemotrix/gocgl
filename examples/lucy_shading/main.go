@@ -45,6 +45,7 @@ func main() {
 	var rps float64 = 0.1
 	last := sdl.GetTicks()
 
+	counter := 0
 	for handleEvents() {
 		start := time.Now()
 		engine.Image.FillWithColor(COLOR_BLK)
@@ -59,6 +60,8 @@ func main() {
 
 		engine.Render()
 
+		engine.Image.WritePPM(fmt.Sprintf("lucy_frames/out%04d.ppm", counter))
+		counter++
 		fmt.Println("Frame render time:", time.Since(start))
 	}
 }
