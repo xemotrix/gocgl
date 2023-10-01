@@ -3,11 +3,11 @@ A CPU 2D &amp; 3D graphic library in go
 
 
 ## 2d triangle with alpha channel
-https://github.com/xemotrix/gocgl/assets/86889292/23e844c1-f9a2-4e7d-a06a-b200fc568dc9
+https://github.com/xemotrix/gocgl/assets/86889292/dfe2ce83-38d0-4811-a35e-0f6f263dd1a2
 
 ## 3d triangle with uv coorinates shading
-https://github.com/xemotrix/gocgl/assets/86889292/e697c31a-2054-45f5-96d9-ec9a82af8aef
+https://github.com/xemotrix/gocgl/assets/86889292/97da756a-f444-4d09-b1bc-7fbe3f9b850a
 
 ## [lucy](https://github.com/alecjacobson/common-3d-test-models/tree/master) with shaders
-https://github.com/xemotrix/gocgl/assets/86889292/22c23c00-4dd7-470a-8318-185318e8fd26
+https://github.com/xemotrix/gocgl/assets/86889292/bbf774a5-49e9-4f51-954d-30a3cb072405
 
