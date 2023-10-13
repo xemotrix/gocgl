@@ -77,6 +77,14 @@ func (img *Image) FillWithColor(color uint32) {
 	img.Zbuf = make([]float64, img.Width*img.Height)
 }
 
+func (img *Image) ApplyColorFilter(color uint32) {
+	for x := uint32(0); x < img.Width; x += 1 {
+		for y := uint32(0); y < img.Height; y += 1 {
+			img.SetPixel(x, y, color)
+		}
+	}
+}
+
 func (img *Image) WritePPM(filePath string) error {
 	f, _ := os.Create(filePath)
 	defer f.Close()
