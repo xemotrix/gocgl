@@ -14,8 +14,8 @@ import (
 
 const (
 	FACTOR = 100
-	WIDTH  = 16 * FACTOR
-	HEIGHT = 9 * FACTOR
+	WIDTH  = 12 * FACTOR
+	HEIGHT = 12 * FACTOR
 
 	COLOR_BLK = 0xff000000
 	COLOR_WHT = 0xffffffff
@@ -26,7 +26,8 @@ const (
 	COLOR_CYN = 0xff00ffff
 	COLOR_MAG = 0xffff00ff
 
-	COLOR_CYN_T = 0x7f00ffff
+	COLOR_OTHERS = 0xff2222aa
+	FADE_COLOR   = 0x0f000000
 
 	maxLat = -34.48777974377998
 	maxLon = -58.275558373211496
@@ -48,9 +49,15 @@ type DataPoint struct {
 	lat float64
 	lon float64
 	tm  time.Time
+	id  string
+}
+type MapGenerator struct {
+	segments [][2]DataPoint
+	asset    string
+	t        time.Time
 }
 
-func parseLines(lines []string) [][2]DataPoint {
+func parseLines(lines []string) *MapGenerator {
 
 	dataPoints := make(map[string][]DataPoint)
 
@@ -70,15 +77,21 @@ func parseLines(lines []string) [][2]DataPoint {
 		if err != nil {
 			panic(err)
 		}
-		dp := DataPoint{lat, lon, date}
+		dp := DataPoint{lat, lon, date, id}
 		if dataPoints[id] == nil {
 			dataPoints[id] = []DataPoint{dp}
 		} else {
 			dataPoints[id] = append(dataPoints[id], dp)
 		}
 	}
+	maxAsset := ""
+	maxN := 0
 
-	for k := range dataPoints {
+	for k, v := range dataPoints {
+		if len(v) > maxN {
+			maxN = len(v)
+			maxAsset = k
+		}
 		slices.SortFunc(dataPoints[k], func(i, j DataPoint) bool {
 			return i.tm.Before(j.tm)
 		})
@@ -94,15 +107,42 @@ func parseLines(lines []string) [][2]DataPoint {
 	slices.SortFunc(segments, func(i, j [2]DataPoint) bool {
 		return i[0].tm.Before(j[0].tm)
 	})
-	return segments
+
+	minTime := segments[0][0].tm
+
+	g := MapGenerator{
+		segments: segments,
+		asset:    maxAsset,
+		t:        minTime,
+	}
+
+	return &g
 }
 
-func outOfBounds(lat, lon float64) bool {
-	return lat >= maxLat || lat <= minLat || lon <= minLon || lon >= maxLon
+func outOfBounds(seg [2]DataPoint) bool {
+	return seg[0].lat >= maxLat ||
+		seg[0].lat <= minLat ||
+		seg[0].lon <= minLon ||
+		seg[0].lon >= maxLon ||
+		seg[1].lat >= maxLat ||
+		seg[1].lat <= minLat ||
+		seg[1].lon <= minLon ||
+		seg[1].lon >= maxLon
+}
+
+func lineFromSegment(seg [2]DataPoint) gocgl.Line {
+	p1 := gocgl.Point{
+		Y: -((seg[0].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
+		X: ((seg[0].lon-minLon)/(maxLon-minLon) - 0.5) * 2,
+	}
+	p2 := gocgl.Point{
+		Y: -((seg[1].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
+		X: ((seg[1].lon-minLon)/(maxLon-minLon) - 0.5) * 2,
+	}
+	return gocgl.Line{P1: p1, P2: p2}
 }
 
 func main() {
-
 	contents, err := os.ReadFile("examples/map/locations.csv")
 
 	if err != nil {
@@ -111,58 +151,61 @@ func main() {
 
 	csv_str := string(contents)
 	lines := strings.Split(csv_str, "\n")
-	fmt.Println(len(lines))
-
 	fmt.Println("finished reading")
 
-	segments := parseLines(lines)
-	minTime := segments[0][0].tm
-	maxTime := segments[len(segments)-1][0].tm
-
-	fmt.Printf("minTime: %v, maxTime: %v\n", minTime, maxTime)
-	fmt.Printf("duration: %v\n", maxTime.Sub(minTime))
+	mapGen := parseLines(lines)
 	fmt.Println("finished parsing")
 
 	engine := gocgl.NewEngine(WIDTH, HEIGHT)
-	idx := 0
-	fmt.Printf("segments: %d\n", len(segments))
-	var fadeColor uint32 = 0x0a000000
-	timeLimit := minTime
-	for handleEvents() {
-		engine.Image.ApplyColorFilter(fadeColor)
-		timeLimit = timeLimit.Add(1 * time.Minute)
-		for {
-			if idx >= len(segments) {
-				break
-			}
-			seg := segments[idx]
-			if !seg[0].tm.Before(timeLimit) {
-				break
-			}
-			if outOfBounds(seg[0].lat, seg[0].lon) || outOfBounds(seg[1].lat, seg[1].lon) {
-				idx++
-				continue
-			}
-			p1 := gocgl.Point{
-				Y: ((seg[0].lon-minLon)/(maxLon-minLon) - 0.5) * 2,
-				X: ((seg[0].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
-			}
-			p2 := gocgl.Point{
-				Y: ((seg[1].lon-minLon)/(maxLon-minLon) - 0.5) * 2,
-				X: ((seg[1].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
-			}
-			l := gocgl.Line{P1: p1, P2: p2}
-			if l.Length() > 0.05 {
-				idx++
-				continue
-			}
-			l.Render(engine.Image, COLOR_WHT)
-			idx++
-		}
 
-		if idx >= len(segments) {
+	for handleEvents() {
+		goOn := mapGen.renderFrame(engine)
+		if !goOn {
 			break
 		}
+		// engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
 		engine.Render()
 	}
+}
+
+func (mg *MapGenerator) renderFrame(e *gocgl.Engine) bool {
+	e.Image.ApplyColorFilter(FADE_COLOR)
+	mg.t = mg.t.Add(10 * time.Second)
+	idx := 0
+	assetLines := []gocgl.Line{}
+
+	for len(mg.segments) > 1 {
+		seg := mg.segments[idx]
+		idx++
+		if !seg[0].tm.Before(mg.t) {
+			break
+		}
+		if outOfBounds(seg) {
+			continue
+		}
+		l := lineFromSegment(seg)
+		if l.Length() > 0.05 {
+			continue
+		}
+
+		if seg[0].id == mg.asset {
+			assetLines = append(assetLines, l)
+			continue
+		}
+
+		l.Render(e.Image, COLOR_OTHERS)
+	}
+	for i := 0; i < len(assetLines); i++ {
+		l := assetLines[i]
+		l.Render(e.Image, COLOR_WHT)
+	}
+
+	mg.segments = mg.segments[idx:]
+
+	if idx >= len(mg.segments) {
+		return false
+	}
+
+	return true
+
 }
