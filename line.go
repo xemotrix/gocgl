@@ -20,6 +20,10 @@ func (l *Line) Render(
 	x1 := p2.X
 	y1 := p2.Y
 
+	if x0 < 0 || x1 < 0 || y0 < 0 || y1 < 0 {
+		return
+	}
+
 	if x0 == x1 {
 		drawVerticalLine(img, x0, y0, y1, color)
 		return
