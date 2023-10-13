@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -14,8 +15,8 @@ import (
 
 const (
 	FACTOR = 100
-	WIDTH  = 12 * FACTOR
-	HEIGHT = 12 * FACTOR
+	WIDTH  = 16 * FACTOR
+	HEIGHT = 9 * FACTOR
 
 	COLOR_BLK = 0xff000000
 	COLOR_WHT = 0xffffffff
@@ -27,7 +28,7 @@ const (
 	COLOR_MAG = 0xffff00ff
 
 	COLOR_OTHERS = 0xff2222aa
-	FADE_COLOR   = 0x0f000000
+	FADE_COLOR   = 0x0a000000
 
 	maxLat = -34.48777974377998
 	maxLon = -58.275558373211496
@@ -119,25 +120,17 @@ func parseLines(lines []string) *MapGenerator {
 	return &g
 }
 
-func outOfBounds(seg [2]DataPoint) bool {
-	return seg[0].lat >= maxLat ||
-		seg[0].lat <= minLat ||
-		seg[0].lon <= minLon ||
-		seg[0].lon >= maxLon ||
-		seg[1].lat >= maxLat ||
-		seg[1].lat <= minLat ||
-		seg[1].lon <= minLon ||
-		seg[1].lon >= maxLon
-}
-
 func lineFromSegment(seg [2]DataPoint) gocgl.LineZ {
+	factor := 3.0
 	p1 := gocgl.PointZ{
-		Z: -((seg[0].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
-		X: ((seg[0].lon-minLon)/(maxLon-minLon) - 0.5) * 2,
+		Y: -((seg[0].lat-minLat)/(maxLat-minLat) - 0.5) * factor,
+		X: ((seg[0].lon-minLon)/(maxLon-minLon) - 0.5) * factor,
+		Z: 1,
 	}
 	p2 := gocgl.PointZ{
-		Z: -((seg[1].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
-		X: ((seg[1].lon-minLon)/(maxLon-minLon) - 0.5) * 2,
+		Y: -((seg[1].lat-minLat)/(maxLat-minLat) - 0.5) * factor,
+		X: ((seg[1].lon-minLon)/(maxLon-minLon) - 0.5) * factor,
+		Z: 1,
 	}
 	return gocgl.LineZ{P1: p1, P2: p2}
 }
@@ -158,17 +151,33 @@ func main() {
 
 	engine := gocgl.NewEngine(WIDTH, HEIGHT)
 
+	angle := math.Pi / 2
 	for handleEvents() {
-		goOn := mapGen.renderFrame(engine)
+		angle += 0.0003
+		goOn := mapGen.renderFrame(engine, angle)
 		if !goOn {
 			break
 		}
-		// engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
 		engine.Render()
 	}
 }
 
-func (mg *MapGenerator) renderFrame(e *gocgl.Engine) bool {
+func lineOutOfBounds(l *gocgl.LineZ) bool {
+	factor := 2.0
+	return l.P1.X < -factor || l.P1.X > factor || l.P1.Y < -factor || l.P1.Y > factor ||
+		l.P2.X < -factor || l.P2.X > factor || l.P2.Y < -factor || l.P2.Y > factor || l.P1.Z < 0 || l.P2.Z < 0
+}
+
+func rotateLine(l *gocgl.LineZ, angle float64) {
+	l.P1.RotateZ(0, 0, angle)
+	l.P2.RotateZ(0, 0, angle)
+	l.P1.RotateX(0, 0.5, -math.Pi/3)
+	l.P2.RotateX(0, 0.5, -math.Pi/3)
+	l.P1.Y -= 0.1
+	l.P2.Y -= 0.1
+}
+
+func (mg *MapGenerator) renderFrame(e *gocgl.Engine, angle float64) bool {
 	e.Image.ApplyColorFilter(FADE_COLOR)
 	mg.t = mg.t.Add(10 * time.Second)
 	idx := 0
@@ -180,23 +189,25 @@ func (mg *MapGenerator) renderFrame(e *gocgl.Engine) bool {
 		if !seg[0].tm.Before(mg.t) {
 			break
 		}
-		if outOfBounds(seg) {
+		l := lineFromSegment(seg)
+		if lineOutOfBounds(&l) {
 			continue
 		}
-		l := lineFromSegment(seg)
-		// if l.Length() > 0.05 {
-		// 	continue
-		// }
+		if l.Length() > 0.05 {
+			continue
+		}
 
 		if seg[0].id == mg.asset {
 			assetLines = append(assetLines, l)
 			continue
 		}
 
+		rotateLine(&l, angle)
 		l.Render(e.Image, COLOR_OTHERS)
 	}
 	for i := 0; i < len(assetLines); i++ {
 		l := assetLines[i]
+		rotateLine(&l, angle)
 		l.Render(e.Image, COLOR_WHT)
 	}
 

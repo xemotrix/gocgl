@@ -13,12 +13,31 @@ func (l *LineZ) Render(
 	img *Image,
 	color uint32,
 ) {
-	pp1 := l.P1.Project(uint32(img.Width), uint32(img.Height))
-	pp2 := l.P2.Project(uint32(img.Width), uint32(img.Height))
+	pp1 := l.P1.Project(img.Width, img.Height)
+	pp2 := l.P2.Project(img.Width, img.Height)
+
+	pp1.MapDown(img.Width, img.Height)
+	pp2.MapDown(img.Width, img.Height)
 
 	l2d := Line{
 		P1: pp1,
 		P2: pp2,
 	}
 	l2d.Render(img, color)
+}
+
+func (p *Point) MapDown(wi, hi uint32) {
+	w := float64(wi)
+	h := float64(hi)
+	if w > h {
+		p.X = 2/h*(p.X-(w-h)/2) - 1
+		p.Y = 2/h*p.Y - 1
+	} else {
+		p.X = 2/w*p.X - 1
+		p.Y = 2/w*(p.Y-(h-w)/2) - 1
+	}
+}
+
+func (l *LineZ) Length() float64 {
+	return l.P1.Distance(l.P2)
 }

@@ -7,9 +7,9 @@ type TriangleZ struct {
 func (t *TriangleZ) RenderZ(img *Image, c1, c2, c3 uint32) {
 	t2d := Triangle{
 		Points: [3]Point{
-			t.Points[0].Project(uint32(img.Width), uint32(img.Height)),
-			t.Points[1].Project(uint32(img.Width), uint32(img.Height)),
-			t.Points[2].Project(uint32(img.Width), uint32(img.Height)),
+			t.Points[0].Project(img.Width, img.Height),
+			t.Points[1].Project(img.Width, img.Height),
+			t.Points[2].Project(img.Width, img.Height),
 		},
 	}
 
