@@ -127,14 +127,18 @@ func main() {
 	idx := 0
 	fmt.Printf("segments: %d\n", len(segments))
 	var fadeColor uint32 = 0x0a000000
-	// timeLimit := minTime
+	timeLimit := minTime
 	for handleEvents() {
 		engine.Image.ApplyColorFilter(fadeColor)
-		for i := 0; i < 1000; i++ {
+		timeLimit = timeLimit.Add(1 * time.Minute)
+		for {
 			if idx >= len(segments) {
 				break
 			}
 			seg := segments[idx]
+			if !seg[0].tm.Before(timeLimit) {
+				break
+			}
 			if outOfBounds(seg[0].lat, seg[0].lon) || outOfBounds(seg[1].lat, seg[1].lon) {
 				idx++
 				continue
