@@ -8,10 +8,17 @@ func (l *Line) Render(
 	img *Image,
 	color uint32,
 ) {
-	x0 := l.P1.X
-	y0 := l.P1.Y
-	x1 := l.P2.X
-	y1 := l.P2.Y
+
+	p1 := l.P1
+	p2 := l.P2
+
+	p1.MapUp(img.Width, img.Height)
+	p2.MapUp(img.Width, img.Height)
+
+	x0 := p1.X
+	y0 := p1.Y
+	x1 := p2.X
+	y1 := p2.Y
 
 	if x0 == x1 {
 		drawVerticalLine(img, x0, y0, y1, color)
