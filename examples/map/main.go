@@ -130,16 +130,16 @@ func outOfBounds(seg [2]DataPoint) bool {
 		seg[1].lon >= maxLon
 }
 
-func lineFromSegment(seg [2]DataPoint) gocgl.Line {
-	p1 := gocgl.Point{
-		Y: -((seg[0].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
+func lineFromSegment(seg [2]DataPoint) gocgl.LineZ {
+	p1 := gocgl.PointZ{
+		Z: -((seg[0].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
 		X: ((seg[0].lon-minLon)/(maxLon-minLon) - 0.5) * 2,
 	}
-	p2 := gocgl.Point{
-		Y: -((seg[1].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
+	p2 := gocgl.PointZ{
+		Z: -((seg[1].lat-minLat)/(maxLat-minLat) - 0.5) * 2,
 		X: ((seg[1].lon-minLon)/(maxLon-minLon) - 0.5) * 2,
 	}
-	return gocgl.Line{P1: p1, P2: p2}
+	return gocgl.LineZ{P1: p1, P2: p2}
 }
 
 func main() {
@@ -172,7 +172,7 @@ func (mg *MapGenerator) renderFrame(e *gocgl.Engine) bool {
 	e.Image.ApplyColorFilter(FADE_COLOR)
 	mg.t = mg.t.Add(10 * time.Second)
 	idx := 0
-	assetLines := []gocgl.Line{}
+	assetLines := []gocgl.LineZ{}
 
 	for len(mg.segments) > 1 {
 		seg := mg.segments[idx]
@@ -184,9 +184,9 @@ func (mg *MapGenerator) renderFrame(e *gocgl.Engine) bool {
 			continue
 		}
 		l := lineFromSegment(seg)
-		if l.Length() > 0.05 {
-			continue
-		}
+		// if l.Length() > 0.05 {
+		// 	continue
+		// }
 
 		if seg[0].id == mg.asset {
 			assetLines = append(assetLines, l)
