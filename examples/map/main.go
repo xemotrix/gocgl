@@ -163,9 +163,26 @@ func main() {
 
 		// l := gocgl.LineZ{
 		// 	P1: gocgl.PointZ{X: -0.5, Y: -1, Z: 1},
-		// 	P2: gocgl.PointZ{X: 1, Y: 1, Z: 1},
+		// 	P2: gocgl.PointZ{X: 0.5, Y: 1, Z: 1},
 		// }
-		// l.Render(engine.Image, COLOR_WHT)
+		// l2 := gocgl.LineZ{
+		// 	P1: gocgl.PointZ{X: 0.5, Y: -1, Z: 1},
+		// 	P2: gocgl.PointZ{X: -0.5, Y: 1, Z: 1},
+		// }
+		// l3 := gocgl.LineZ{
+		// 	P1: gocgl.PointZ{X: -1, Y: 0.5, Z: 1},
+		// 	P2: gocgl.PointZ{X: 1, Y: -0.5, Z: 1},
+		// }
+		// l4 := gocgl.LineZ{
+		// 	P1: gocgl.PointZ{X: 1, Y: 0.5, Z: 1},
+		// 	P2: gocgl.PointZ{X: -1, Y: -0.5, Z: 1},
+		// }
+		// l.RenderWidth(engine.Image, COLOR_WHT, 5.0)
+		// l2.RenderWidth(engine.Image, COLOR_CYN, 5.0)
+		// l.Render(engine.Image, COLOR_BLK)
+		// l2.Render(engine.Image, COLOR_BLK)
+		// l3.RenderWidth(engine.Image, COLOR_MAG, 5.0)
+		// l4.RenderWidth(engine.Image, COLOR_YEL, 5.0)
 
 		engine.Render()
 		// engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
@@ -219,7 +236,7 @@ func (mg *MapGenerator) renderFrame(e *gocgl.Engine, angle float64) bool {
 	for i := 0; i < len(assetLines); i++ {
 		l := assetLines[i]
 		rotateLine(&l, angle)
-		l.Render(e.Image, COLOR_WHT)
+		l.RenderWidth(e.Image, COLOR_WHT, 5.0)
 	}
 
 	mg.segments = mg.segments[idx:]

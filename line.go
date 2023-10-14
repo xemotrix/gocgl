@@ -90,6 +90,92 @@ func (l *Line) Length() float64 {
 	return l.P1.Distance(l.P2)
 }
 
+// Line with width
+func (l *Line) DistanceTo(p Point) float64 {
+	x0 := p.X
+	y0 := p.Y
+	x1 := l.P1.X
+	y1 := l.P1.Y
+	x2 := l.P2.X
+	y2 := l.P2.Y
+
+	l2 := l.Length()
+	if l2 == 0 {
+		return p.Distance(l.P1)
+	}
+	t := ((x0-x1)*(x2-x1) + (y0-y1)*(y2-y1)) / (l2 * l2)
+	t = max(0, min(1, t))
+
+	dist := p.Distance(Point{
+		X: x1 + t*(x2-x1),
+		Y: y1 + t*(y2-y1),
+	})
+	return dist
+}
+
+func (l *Line) RenderWidth(img *Image, color uint32, widthPx float64) {
+	p1 := l.P1
+	p2 := l.P2
+
+	x0 := p1.X
+	y0 := p1.Y
+	x1 := p2.X
+	y1 := p2.Y
+
+	if x0 < 0 || x1 < 0 || y0 < 0 || y1 < 0 {
+		return
+	}
+
+	steep := abs(y1-y0) > abs(x1-x0)
+
+	// if steep {
+	// 	x0, y0 = y0, x0
+	// 	x1, y1 = y1, x1
+	// }
+	halfWidth := widthPx / 2
+
+	if steep {
+		if y0 > y1 {
+			x0, x1 = x1, x0
+			y0, y1 = y1, y0
+		}
+		for y := math.Floor(y0 - halfWidth - 1); y <= math.Ceil(y1+halfWidth+1); y++ {
+			xl := x0 + (x1-x0)*(y-y0)/(y1-y0)
+
+			for x := math.Floor(xl - halfWidth - 1); x <= math.Ceil(xl+halfWidth+1); x++ {
+				dist := l.DistanceTo(Point{X: x, Y: y})
+
+				if dist < halfWidth {
+					img.SetPixel(uint32(x), uint32(y), color)
+				} else if dist < (halfWidth + 1) {
+					colorm := modifyAlpha(color, 1-(dist-halfWidth))
+					img.SetPixel(uint32(x), uint32(y), colorm)
+				}
+			}
+		}
+	} else {
+		if x0 > x1 {
+			x0, x1 = x1, x0
+			y0, y1 = y1, y0
+		}
+		for x := math.Floor(x0 - halfWidth - 1); x <= math.Ceil(x1+halfWidth+1); x++ {
+			yl := y0 + (y1-y0)*(x-x0)/(x1-x0)
+
+			for y := math.Floor(yl - halfWidth - 1); y <= math.Ceil(yl+halfWidth+1); y++ {
+				dist := l.DistanceTo(Point{X: x, Y: y})
+
+				if dist < halfWidth {
+					img.SetPixel(uint32(x), uint32(y), color)
+				} else if dist < (halfWidth + 1) {
+					colorm := modifyAlpha(color, 1-(dist-halfWidth))
+					img.SetPixel(uint32(x), uint32(y), colorm)
+				}
+			}
+		}
+	}
+
+}
+
 // Xiaolin Wu's line algorithm
 func fpart(x float64) float64 {
 	return x - math.Floor(x)
