@@ -1,5 +1,9 @@
 package gocgl
 
+import (
+	"math"
+)
+
 type Line struct {
 	P1, P2 Point
 }
@@ -84,4 +88,86 @@ func drawVerticalLine(img *Image, x, y1, y2 float64, color uint32) {
 
 func (l *Line) Length() float64 {
 	return l.P1.Distance(l.P2)
+}
+
+// Xiaolin Wu's line algorithm
+func fpart(x float64) float64 {
+	return x - math.Floor(x)
+}
+func rfpart(x float64) float64 {
+	return 1 - fpart(x)
+}
+func modifyAlpha(color uint32, brightness float64) uint32 {
+	alpha := uint32(brightness * float64(color>>24))
+	return (color & 0x00ffffff) | (alpha << 24)
+}
+func (l *Line) RenderAA(img *Image, color uint32) {
+	x0 := l.P1.X
+	y0 := l.P1.Y
+	x1 := l.P2.X
+	y1 := l.P2.Y
+	steep := abs(y1-y0) > abs(x1-x0)
+
+	if steep {
+		x0, y0 = y0, x0
+		x1, y1 = y1, x1
+	}
+	if x0 > x1 {
+		x0, x1 = x1, x0
+		y0, y1 = y1, y0
+	}
+
+	dx := x1 - x0
+	dy := y1 - y0
+
+	var gradient float64
+	if dx == 0 {
+		gradient = 1
+	} else {
+		gradient = dy / dx
+	}
+
+	// first endpoint
+	xend := math.Round(x0)
+	yend := y0 + gradient*(xend-x0)
+	xgap := rfpart(x0 + 0.5)
+	xpxl1 := xend // this will be used in the main loop
+	ypxl1 := math.Floor(yend)
+	if steep {
+		img.SetPixel(uint32(ypxl1), uint32(xpxl1), modifyAlpha(color, rfpart(yend)*xgap))
+		img.SetPixel(uint32(ypxl1+1), uint32(xpxl1), modifyAlpha(color, fpart(yend)*xgap))
+	} else {
+		img.SetPixel(uint32(xpxl1), uint32(ypxl1), modifyAlpha(color, rfpart(yend)*xgap))
+		img.SetPixel(uint32(xpxl1), uint32(ypxl1+1), modifyAlpha(color, fpart(yend)*xgap))
+	}
+	intery := yend + gradient // first y-intersection for the main loop
+
+	// second endpoint
+	xend = math.Round(x1)
+	yend = y1 + gradient*(xend-x1)
+	xgap = fpart(x1 + 0.5)
+	xpxl2 := xend // this will be used in the main loop
+	ypxl2 := math.Floor(yend)
+	if steep {
+		img.SetPixel(uint32(ypxl2), uint32(xpxl2), modifyAlpha(color, rfpart(yend)*xgap))
+		img.SetPixel(uint32(ypxl2+1), uint32(xpxl2), modifyAlpha(color, fpart(yend)*xgap))
+	} else {
+		img.SetPixel(uint32(xpxl2), uint32(ypxl2), modifyAlpha(color, rfpart(yend)*xgap))
+		img.SetPixel(uint32(xpxl2), uint32(ypxl2+1), modifyAlpha(color, fpart(yend)*xgap))
+	}
+
+	// main loop
+	if steep {
+		for x := xpxl1 + 1; x <= xpxl2-1; x++ {
+			img.SetPixel(uint32(math.Floor(intery)), uint32(x), modifyAlpha(color, rfpart(intery)))
+			img.SetPixel(uint32(math.Floor(intery)+1), uint32(x), modifyAlpha(color, fpart(intery)))
+			intery = intery + gradient
+		}
+	} else {
+		for x := xpxl1 + 1; x <= xpxl2-1; x++ {
+			img.SetPixel(uint32(x), uint32(math.Floor(intery)), modifyAlpha(color, rfpart(intery)))
+			img.SetPixel(uint32(x), uint32(math.Floor(intery)+1), modifyAlpha(color, fpart(intery)))
+			intery = intery + gradient
+		}
+	}
 }

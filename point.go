@@ -34,3 +34,15 @@ func (p *Point) MapUp(wi, hi uint32) {
 		p.Y = (p.Y+1)/2*w + (h-w)/2
 	}
 }
+
+func (p *Point) MapDown(wi, hi uint32) {
+	w := float64(wi)
+	h := float64(hi)
+	if w > h {
+		p.X = 2/h*(p.X-(w-h)/2) - 1
+		p.Y = 2/h*p.Y - 1
+	} else {
+		p.X = 2/w*p.X - 1
+		p.Y = 2/w*(p.Y-(h-w)/2) - 1
+	}
+}

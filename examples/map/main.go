@@ -52,6 +52,7 @@ type DataPoint struct {
 	tm  time.Time
 	id  string
 }
+
 type MapGenerator struct {
 	segments [][2]DataPoint
 	asset    string
@@ -149,32 +150,42 @@ func main() {
 	mapGen := parseLines(lines)
 	fmt.Println("finished parsing")
 
-	engine := gocgl.NewEngine(WIDTH, HEIGHT)
-
 	angle := math.Pi / 2
+	// counter := 0
+	engine := gocgl.NewEngine(WIDTH, HEIGHT)
 	for handleEvents() {
 		angle += 0.0003
 		goOn := mapGen.renderFrame(engine, angle)
 		if !goOn {
 			break
 		}
+		// engine.Image.FillWithColor(COLOR_BLK)
+
+		// l := gocgl.LineZ{
+		// 	P1: gocgl.PointZ{X: -0.5, Y: -1, Z: 1},
+		// 	P2: gocgl.PointZ{X: 1, Y: 1, Z: 1},
+		// }
+		// l.Render(engine.Image, COLOR_WHT)
+
 		engine.Render()
+		// engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
+		// counter++
 	}
 }
 
 func lineOutOfBounds(l *gocgl.LineZ) bool {
-	factor := 2.0
+	factor := 3.0
 	return l.P1.X < -factor || l.P1.X > factor || l.P1.Y < -factor || l.P1.Y > factor ||
 		l.P2.X < -factor || l.P2.X > factor || l.P2.Y < -factor || l.P2.Y > factor || l.P1.Z < 0 || l.P2.Z < 0
 }
 
 func rotateLine(l *gocgl.LineZ, angle float64) {
-	l.P1.RotateZ(0, 0, angle)
-	l.P2.RotateZ(0, 0, angle)
-	l.P1.RotateX(0, 0.5, -math.Pi/3)
-	l.P2.RotateX(0, 0.5, -math.Pi/3)
-	l.P1.Y -= 0.1
-	l.P2.Y -= 0.1
+	// l.P1.RotateZ(0, 0, angle)
+	// l.P2.RotateZ(0, 0, angle)
+	// l.P1.RotateX(0, 0.5, -math.Pi/3)
+	// l.P2.RotateX(0, 0.5, -math.Pi/3)
+	// l.P1.Y -= 0.1
+	// l.P2.Y -= 0.1
 }
 
 func (mg *MapGenerator) renderFrame(e *gocgl.Engine, angle float64) bool {
