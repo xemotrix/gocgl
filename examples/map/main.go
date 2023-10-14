@@ -27,8 +27,11 @@ const (
 	COLOR_CYN = 0xff00ffff
 	COLOR_MAG = 0xffff00ff
 
-	COLOR_OTHERS = 0xff2222aa
-	FADE_COLOR   = 0x0a000000
+	// COLOR_OTHERS = 0xff2222aa
+	COLOR_OTHERS = 0xff7145d6
+	// FADE_COLOR   = 0x0a000000
+	FADE_COLOR  = 0x01000000
+	COLOR_ASSET = COLOR_WHT
 
 	maxLat = -34.48777974377998
 	maxLon = -58.275558373211496
@@ -159,30 +162,6 @@ func main() {
 		if !goOn {
 			break
 		}
-		// engine.Image.FillWithColor(COLOR_BLK)
-
-		// l := gocgl.LineZ{
-		// 	P1: gocgl.PointZ{X: -0.5, Y: -1, Z: 1},
-		// 	P2: gocgl.PointZ{X: 0.5, Y: 1, Z: 1},
-		// }
-		// l2 := gocgl.LineZ{
-		// 	P1: gocgl.PointZ{X: 0.5, Y: -1, Z: 1},
-		// 	P2: gocgl.PointZ{X: -0.5, Y: 1, Z: 1},
-		// }
-		// l3 := gocgl.LineZ{
-		// 	P1: gocgl.PointZ{X: -1, Y: 0.5, Z: 1},
-		// 	P2: gocgl.PointZ{X: 1, Y: -0.5, Z: 1},
-		// }
-		// l4 := gocgl.LineZ{
-		// 	P1: gocgl.PointZ{X: 1, Y: 0.5, Z: 1},
-		// 	P2: gocgl.PointZ{X: -1, Y: -0.5, Z: 1},
-		// }
-		// l.RenderWidth(engine.Image, COLOR_WHT, 5.0)
-		// l2.RenderWidth(engine.Image, COLOR_CYN, 5.0)
-		// l.Render(engine.Image, COLOR_BLK)
-		// l2.Render(engine.Image, COLOR_BLK)
-		// l3.RenderWidth(engine.Image, COLOR_MAG, 5.0)
-		// l4.RenderWidth(engine.Image, COLOR_YEL, 5.0)
 
 		engine.Render()
 		// engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
@@ -231,12 +210,13 @@ func (mg *MapGenerator) renderFrame(e *gocgl.Engine, angle float64) bool {
 		}
 
 		rotateLine(&l, angle)
+		// l.RenderWidth(e.Image, COLOR_OTHERS, 0.3)
 		l.Render(e.Image, COLOR_OTHERS)
 	}
 	for i := 0; i < len(assetLines); i++ {
 		l := assetLines[i]
 		rotateLine(&l, angle)
-		l.RenderWidth(e.Image, COLOR_WHT, 5.0)
+		l.RenderWidth(e.Image, COLOR_ASSET, 2.0)
 	}
 
 	mg.segments = mg.segments[idx:]
