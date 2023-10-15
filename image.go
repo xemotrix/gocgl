@@ -3,7 +3,6 @@ package gocgl
 import (
 	"fmt"
 	"os"
-	"time"
 	"unsafe"
 )
 
@@ -51,23 +50,59 @@ func (img *Image) SetPixel(x, y uint32, color uint32) {
 	}
 
 	index := img.index(x, y)
-	if alphaHex == 0xff {
-		*(*uint32)(unsafe.Pointer(&img.Arr[index])) = color
-		return
-	}
 
 	alpha := float64(alphaHex) / 0xff
 	r := byte(color >> 16)
 	g := byte(color >> 8)
 	b := byte(color)
 
-	r = byte((float64(r) * alpha) + (float64(img.Arr[index+2]) * (1 - alpha)))
-	g = byte((float64(g) * alpha) + (float64(img.Arr[index+1]) * (1 - alpha)))
-	b = byte((float64(b) * alpha) + (float64(img.Arr[index]) * (1 - alpha)))
+	alpha0Hex := img.Arr[index+3]
+	r0 := img.Arr[index+2]
+	g0 := img.Arr[index+1]
+	b0 := img.Arr[index]
 
+	alpha0 := float64(alpha0Hex) / 0xff
+	overAlpha := alpha + alpha0*(1-alpha)
+
+	r = byte(((float64(r) * alpha) + (float64(r0) * alpha0 * (1 - alpha))) / overAlpha)
+	g = byte(((float64(g) * alpha) + (float64(g0) * alpha0 * (1 - alpha))) / overAlpha)
+	b = byte(((float64(b) * alpha) + (float64(b0) * alpha0 * (1 - alpha))) / overAlpha)
+
+	img.Arr[index+3] = byte(overAlpha * 0xff)
 	img.Arr[index+2] = r
 	img.Arr[index+1] = g
 	img.Arr[index] = b
+}
+
+func (img *Image) CopyFrom(other *Image) {
+	copy(img.Arr, other.Arr)
+	copy(img.Zbuf, other.Zbuf)
+}
+
+func (img *Image) Overlay(other *Image) {
+	for index := 0; index < len(img.Arr); index += PIXBYTES {
+		alpha := float64(other.Arr[index+3]) / 0xff
+		r := other.Arr[index+2]
+		g := other.Arr[index+1]
+		b := other.Arr[index]
+
+		alpha0Hex := img.Arr[index+3]
+		r0 := img.Arr[index+2]
+		g0 := img.Arr[index+1]
+		b0 := img.Arr[index]
+
+		alpha0 := float64(alpha0Hex) / 0xff
+		overAlpha := alpha + alpha0*(1-alpha)
+
+		r = byte(((float64(r) * alpha) + (float64(r0) * alpha0 * (1 - alpha))) / overAlpha)
+		g = byte(((float64(g) * alpha) + (float64(g0) * alpha0 * (1 - alpha))) / overAlpha)
+		b = byte(((float64(b) * alpha) + (float64(b0) * alpha0 * (1 - alpha))) / overAlpha)
+
+		img.Arr[index+3] = byte(overAlpha * 0xff)
+		img.Arr[index+2] = r
+		img.Arr[index+1] = g
+		img.Arr[index] = b
+	}
 }
 
 func (img *Image) FillWithColor(color uint32) {
@@ -85,6 +120,12 @@ func (img *Image) ApplyColorFilter(color uint32) {
 	}
 }
 
+func (img *Image) ApplyAlphaReduction(mod float64) {
+	for i := 0; i < len(img.Arr); i += PIXBYTES {
+		img.Arr[i+3] = byte(float64(img.Arr[i+3]) * mod)
+	}
+}
+
 func (img *Image) WritePPM(filePath string) error {
 	f, _ := os.Create(filePath)
 	defer f.Close()
@@ -95,11 +136,6 @@ func (img *Image) WritePPM(filePath string) error {
 	if err != nil {
 		return err
 	}
-
-	start := time.Now()
-	defer func() {
-		fmt.Println("WritePPM took", time.Since(start))
-	}()
 
 	imgBytes := make([]byte, img.Width*img.Height*3)
 
