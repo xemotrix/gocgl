@@ -174,7 +174,7 @@ func (l *Line) RenderWidth(img *Image, color uint32, widthPx float64) {
 
 // Xiaolin Wu's line algorithm
 func fpart(x float64) float64 {
-	return x - math.Floor(x)
+	return x - float64(math.Floor(x))
 }
 func rfpart(x float64) float64 {
 	return 1 - fpart(x)
