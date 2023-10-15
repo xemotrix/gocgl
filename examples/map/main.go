@@ -109,8 +109,12 @@ func parseLines(lines []string) *MapGenerator {
 			maxN = len(v)
 			maxAsset = k
 		}
-		slices.SortFunc(dataPoints[k], func(i, j DataPoint) bool {
-			return i.tm.Before(j.tm)
+		slices.SortFunc(dataPoints[k], func(i, j DataPoint) int {
+			if i.tm.Before(j.tm) {
+				return -1
+			}
+			return 1
+
 		})
 	}
 
@@ -121,8 +125,11 @@ func parseLines(lines []string) *MapGenerator {
 		}
 	}
 
-	slices.SortFunc(segments, func(i, j [2]DataPoint) bool {
-		return i[0].tm.Before(j[0].tm)
+	slices.SortFunc(segments, func(i, j [2]DataPoint) int {
+		if i[0].tm.Before(j[0].tm) {
+			return -1
+		}
+		return 1
 	})
 
 	minTime := segments[0][0].tm
@@ -154,53 +161,72 @@ func lineFromSegment(seg [2]DataPoint) gocgl.LineZ {
 }
 
 func main() {
+	start := time.Now()
 	contents, err := os.ReadFile("examples/map/locations.csv")
-
 	if err != nil {
 		panic(err)
 	}
 
 	csv_str := string(contents)
 	lines := strings.Split(csv_str, "\n")
-	fmt.Println("finished reading")
-
 	mapGen := parseLines(lines)
-	fmt.Println("finished parsing")
+	fmt.Println("time to parse:", time.Since(start))
 
 	counter := 0
 
 	nFrames := int(mapGen.duration / TIME_PER_FRAME)
 
-	engine := gocgl.NewMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
+	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
 	engine.Layers[LAYER_ROAD].FillWithColor(COLOR_BLK)
+
+	calcD := time.Duration(0)
+	renderD := time.Duration(0)
+
 	var wg sync.WaitGroup
+	vch := engine.VideoWriter("videos/map.mp4", WIDTH, HEIGHT, &wg)
+
 	for handleEvents() {
+
+		start := time.Now()
 		goOn := mapGen.renderFrame(engine)
+		calcD += time.Since(start)
 		if !goOn {
 			break
 		}
 
-		progressBar(counter, nFrames)
-		// engine.Render()
+		progressBar(&counter, nFrames)
 
 		wg.Wait()
-		engine.RenderLayers()
+
+		start = time.Now()
+		engine.Render()
+		renderD += time.Since(start)
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
-		}()
-		counter++
+		// engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
+		vch <- engine.Image
 	}
+	wg.Wait()
+	close(vch)
+
+	fmt.Println()
+	fmt.Println("calcD", calcD)
+	fmt.Println("renderD", renderD)
+	fmt.Println("alphaD", alphaD)
+	fmt.Println("preD", preD)
+	fmt.Println("renderlineD", renderlineD)
+	fmt.Println("renderWlineD", renderWlineD)
+
+	fmt.Println("forD", forD)
 }
 
-func progressBar(frame, nFrames int) {
-	barSize := 30.0
-	progress := float64(frame) / float64(nFrames)
+func progressBar(frame *int, nFrames int) {
+	*frame++
+	barSize := float64(30.0)
+	progress := float64(*frame) / float64(nFrames)
 
 	bar := strings.Repeat("#", int(progress*barSize))
-	bar += strings.Repeat("-", int(barSize)-len(bar))
-	fmt.Printf("\rframe %04d/%d [%s]", frame, nFrames, bar)
+	bar += strings.Repeat("-", int(barSize)-len(bar)-1)
+	fmt.Printf("\rframe %04d/%d [%s]", *frame, nFrames, bar)
 }
 
 func lineOutOfBounds(l *gocgl.LineZ) bool {
@@ -218,12 +244,24 @@ func rotateLine(l *gocgl.LineZ, angle float64) {
 	// l.P2.Y -= 0.1
 }
 
+var (
+	alphaD       = time.Duration(0)
+	forD         = time.Duration(0)
+	preD         = time.Duration(0)
+	renderlineD  = time.Duration(0)
+	renderWlineD = time.Duration(0)
+)
+
 func (mg *MapGenerator) renderFrame(e *gocgl.MLEngine) bool {
+	start := time.Now()
 	e.Layers[LAYER_ASSET].ApplyAlphaReduction(FADE_FACTOR)
 	e.Layers[LAYER_OTHERS].ApplyAlphaReduction(FADE_FACTOR)
+	alphaD += time.Since(start)
 	mg.t = mg.t.Add(TIME_PER_FRAME)
 	idx := 0
+	start = time.Now()
 	for len(mg.segments) > 1 {
+		start := time.Now()
 		seg := mg.segments[idx]
 		idx++
 		if !seg[0].tm.Before(mg.t) {
@@ -236,15 +274,21 @@ func (mg *MapGenerator) renderFrame(e *gocgl.MLEngine) bool {
 		if l.Length() > 0.05 {
 			continue
 		}
+		preD += time.Since(start)
 
 		if seg[0].id == mg.asset {
+			start := time.Now()
 			l.RenderWidth(e.Layers[LAYER_ASSET], COLOR_ASSET, 3.0)
+			renderWlineD += time.Since(start)
 			continue
 		}
 
+		start = time.Now()
 		l.Render(e.Layers[LAYER_OTHERS], COLOR_OTHERS)
 		l.Render(e.Layers[LAYER_ROAD], COLOR_ROAD)
+		renderlineD += time.Since(start)
 	}
+	forD += time.Since(start)
 
 	mg.segments = mg.segments[idx:]
 

@@ -56,22 +56,20 @@ func (img *Image) SetPixel(x, y uint32, color uint32) {
 	g := byte(color >> 8)
 	b := byte(color)
 
-	alpha0Hex := img.Arr[index+3]
-	r0 := img.Arr[index+2]
-	g0 := img.Arr[index+1]
-	b0 := img.Arr[index]
+	p0 := unsafe.Pointer(&img.Arr[0])
+	p := (unsafe.Pointer)(uintptr(p0) + uintptr(index))
 
-	alpha0 := float64(alpha0Hex) / 0xff
+	bgra := *(*[4]byte)(p)
+
+	alpha0 := float64(bgra[3]) / 0xff
 	overAlpha := alpha + alpha0*(1-alpha)
 
-	r = byte(((float64(r) * alpha) + (float64(r0) * alpha0 * (1 - alpha))) / overAlpha)
-	g = byte(((float64(g) * alpha) + (float64(g0) * alpha0 * (1 - alpha))) / overAlpha)
-	b = byte(((float64(b) * alpha) + (float64(b0) * alpha0 * (1 - alpha))) / overAlpha)
-
-	img.Arr[index+3] = byte(overAlpha * 0xff)
-	img.Arr[index+2] = r
-	img.Arr[index+1] = g
-	img.Arr[index] = b
+	*(*[4]byte)(p) = [4]byte{
+		byte(((float64(b) * alpha) + (float64(bgra[0]) * alpha0 * (1 - alpha))) / overAlpha),
+		byte(((float64(g) * alpha) + (float64(bgra[1]) * alpha0 * (1 - alpha))) / overAlpha),
+		byte(((float64(r) * alpha) + (float64(bgra[2]) * alpha0 * (1 - alpha))) / overAlpha),
+		byte(overAlpha * 0xff),
+	}
 }
 
 func (img *Image) CopyFrom(other *Image) {
@@ -80,28 +78,26 @@ func (img *Image) CopyFrom(other *Image) {
 }
 
 func (img *Image) Overlay(other *Image) {
-	for index := 0; index < len(img.Arr); index += PIXBYTES {
-		alpha := float64(other.Arr[index+3]) / 0xff
-		r := other.Arr[index+2]
-		g := other.Arr[index+1]
-		b := other.Arr[index]
+	pi := unsafe.Pointer(&img.Arr[0])
+	po := unsafe.Pointer(&other.Arr[0])
+	l := uintptr(len(img.Arr))
+	for index := uintptr(0); index < l; index += PIXBYTES {
+		bgraO := *(*[4]byte)((unsafe.Pointer)(uintptr(po) + index))
+		if bgraO[3] == 0x00 {
+			continue
+		}
+		bgraI := *(*[4]byte)((unsafe.Pointer)(uintptr(pi) + index))
 
-		alpha0Hex := img.Arr[index+3]
-		r0 := img.Arr[index+2]
-		g0 := img.Arr[index+1]
-		b0 := img.Arr[index]
+		alphaI := float32(bgraI[3]) / 0xff
+		alphaO := float32(bgraO[3]) / 0xff
+		overAlpha := alphaO + alphaI*(1-alphaO)
 
-		alpha0 := float64(alpha0Hex) / 0xff
-		overAlpha := alpha + alpha0*(1-alpha)
-
-		r = byte(((float64(r) * alpha) + (float64(r0) * alpha0 * (1 - alpha))) / overAlpha)
-		g = byte(((float64(g) * alpha) + (float64(g0) * alpha0 * (1 - alpha))) / overAlpha)
-		b = byte(((float64(b) * alpha) + (float64(b0) * alpha0 * (1 - alpha))) / overAlpha)
-
-		img.Arr[index+3] = byte(overAlpha * 0xff)
-		img.Arr[index+2] = r
-		img.Arr[index+1] = g
-		img.Arr[index] = b
+		*(*[4]byte)((unsafe.Pointer)(uintptr(pi) + uintptr(index))) = [4]byte{
+			byte(((float32(bgraO[0]) * alphaO) + (float32(bgraI[0]) * alphaI * (1 - alphaO))) / overAlpha),
+			byte(((float32(bgraO[1]) * alphaO) + (float32(bgraI[1]) * alphaI * (1 - alphaO))) / overAlpha),
+			byte(((float32(bgraO[2]) * alphaO) + (float32(bgraI[2]) * alphaI * (1 - alphaO))) / overAlpha),
+			byte(overAlpha * 0xff),
+		}
 	}
 }
 
@@ -120,9 +116,15 @@ func (img *Image) ApplyColorFilter(color uint32) {
 	}
 }
 
-func (img *Image) ApplyAlphaReduction(mod float64) {
-	for i := 0; i < len(img.Arr); i += PIXBYTES {
-		img.Arr[i+3] = byte(float64(img.Arr[i+3]) * mod)
+func (img *Image) ApplyAlphaReduction(delta float64) {
+	p := unsafe.Pointer(&img.Arr[0])
+	l := uintptr(len(img.Arr))
+	for i := uintptr(0); i < l; i += PIXBYTES {
+		alpha := *(*byte)(unsafe.Pointer(uintptr(p) + i + 3))
+		if alpha == 0x00 {
+			continue
+		}
+		*(*byte)(unsafe.Pointer(uintptr(p) + i + 3)) = byte(float64(alpha) * delta)
 	}
 }
 
