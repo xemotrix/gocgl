@@ -128,10 +128,6 @@ func (l *Line) RenderWidth(img *Image, color uint32, widthPx float64) {
 
 	steep := abs(y1-y0) > abs(x1-x0)
 
-	// if steep {
-	// 	x0, y0 = y0, x0
-	// 	x1, y1 = y1, x1
-	// }
 	halfWidth := widthPx / 2
 
 	if steep {

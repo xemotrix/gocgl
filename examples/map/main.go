@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -27,16 +27,27 @@ const (
 	COLOR_CYN = 0xff00ffff
 	COLOR_MAG = 0xffff00ff
 
-	// COLOR_OTHERS = 0xff2222aa
+	COLOR_ROAD   = 0xff000055
 	COLOR_OTHERS = 0xff7145d6
-	// FADE_COLOR   = 0x0a000000
-	FADE_COLOR  = 0x01000000
-	COLOR_ASSET = COLOR_WHT
+	COLOR_ASSET  = COLOR_WHT
+
+	FADE_FACTOR = 0.95
+
+	TIME_PER_FRAME = 10 * time.Second
 
 	maxLat = -34.48777974377998
 	maxLon = -58.275558373211496
 	minLat = -34.729908815849626
 	minLon = -58.616292806865744
+)
+
+type Layer uint8
+
+const (
+	LAYER_ROAD Layer = iota
+	LAYER_OTHERS
+	LAYER_ASSET
+	TOTAL_LAYERS
 )
 
 func handleEvents() bool {
@@ -60,6 +71,7 @@ type MapGenerator struct {
 	segments [][2]DataPoint
 	asset    string
 	t        time.Time
+	duration time.Duration
 }
 
 func parseLines(lines []string) *MapGenerator {
@@ -114,26 +126,28 @@ func parseLines(lines []string) *MapGenerator {
 	})
 
 	minTime := segments[0][0].tm
+	maxTime := segments[len(segments)-1][0].tm
 
 	g := MapGenerator{
 		segments: segments,
 		asset:    maxAsset,
 		t:        minTime,
+		duration: maxTime.Sub(minTime),
 	}
 
 	return &g
 }
 
 func lineFromSegment(seg [2]DataPoint) gocgl.LineZ {
-	factor := 3.0
+	zoomFactor := 5.0
 	p1 := gocgl.PointZ{
-		Y: -((seg[0].lat-minLat)/(maxLat-minLat) - 0.5) * factor,
-		X: ((seg[0].lon-minLon)/(maxLon-minLon) - 0.5) * factor,
+		Y: -((seg[0].lat-minLat)/(maxLat-minLat) - 0.5) * zoomFactor,
+		X: ((seg[0].lon-minLon)/(maxLon-minLon) - 0.5) * zoomFactor,
 		Z: 1,
 	}
 	p2 := gocgl.PointZ{
-		Y: -((seg[1].lat-minLat)/(maxLat-minLat) - 0.5) * factor,
-		X: ((seg[1].lon-minLon)/(maxLon-minLon) - 0.5) * factor,
+		Y: -((seg[1].lat-minLat)/(maxLat-minLat) - 0.5) * zoomFactor,
+		X: ((seg[1].lon-minLon)/(maxLon-minLon) - 0.5) * zoomFactor,
 		Z: 1,
 	}
 	return gocgl.LineZ{P1: p1, P2: p2}
@@ -153,24 +167,44 @@ func main() {
 	mapGen := parseLines(lines)
 	fmt.Println("finished parsing")
 
-	angle := math.Pi / 2
-	// counter := 0
-	engine := gocgl.NewEngine(WIDTH, HEIGHT)
+	counter := 0
+
+	nFrames := int(mapGen.duration / TIME_PER_FRAME)
+
+	engine := gocgl.NewMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
+	engine.Layers[LAYER_ROAD].FillWithColor(COLOR_BLK)
+	var wg sync.WaitGroup
 	for handleEvents() {
-		angle += 0.0003
-		goOn := mapGen.renderFrame(engine, angle)
+		goOn := mapGen.renderFrame(engine)
 		if !goOn {
 			break
 		}
 
-		engine.Render()
-		// engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
-		// counter++
+		progressBar(counter, nFrames)
+		// engine.Render()
+
+		wg.Wait()
+		engine.RenderLayers()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
+		}()
+		counter++
 	}
 }
 
+func progressBar(frame, nFrames int) {
+	barSize := 30.0
+	progress := float64(frame) / float64(nFrames)
+
+	bar := strings.Repeat("#", int(progress*barSize))
+	bar += strings.Repeat("-", int(barSize)-len(bar))
+	fmt.Printf("\rframe %04d/%d [%s]", frame, nFrames, bar)
+}
+
 func lineOutOfBounds(l *gocgl.LineZ) bool {
-	factor := 3.0
+	factor := 4.0
 	return l.P1.X < -factor || l.P1.X > factor || l.P1.Y < -factor || l.P1.Y > factor ||
 		l.P2.X < -factor || l.P2.X > factor || l.P2.Y < -factor || l.P2.Y > factor || l.P1.Z < 0 || l.P2.Z < 0
 }
@@ -184,12 +218,11 @@ func rotateLine(l *gocgl.LineZ, angle float64) {
 	// l.P2.Y -= 0.1
 }
 
-func (mg *MapGenerator) renderFrame(e *gocgl.Engine, angle float64) bool {
-	e.Image.ApplyColorFilter(FADE_COLOR)
-	mg.t = mg.t.Add(10 * time.Second)
+func (mg *MapGenerator) renderFrame(e *gocgl.MLEngine) bool {
+	e.Layers[LAYER_ASSET].ApplyAlphaReduction(FADE_FACTOR)
+	e.Layers[LAYER_OTHERS].ApplyAlphaReduction(FADE_FACTOR)
+	mg.t = mg.t.Add(TIME_PER_FRAME)
 	idx := 0
-	assetLines := []gocgl.LineZ{}
-
 	for len(mg.segments) > 1 {
 		seg := mg.segments[idx]
 		idx++
@@ -205,18 +238,12 @@ func (mg *MapGenerator) renderFrame(e *gocgl.Engine, angle float64) bool {
 		}
 
 		if seg[0].id == mg.asset {
-			assetLines = append(assetLines, l)
+			l.RenderWidth(e.Layers[LAYER_ASSET], COLOR_ASSET, 3.0)
 			continue
 		}
 
-		rotateLine(&l, angle)
-		// l.RenderWidth(e.Image, COLOR_OTHERS, 0.3)
-		l.Render(e.Image, COLOR_OTHERS)
-	}
-	for i := 0; i < len(assetLines); i++ {
-		l := assetLines[i]
-		rotateLine(&l, angle)
-		l.RenderWidth(e.Image, COLOR_ASSET, 2.0)
+		l.Render(e.Layers[LAYER_OTHERS], COLOR_OTHERS)
+		l.Render(e.Layers[LAYER_ROAD], COLOR_ROAD)
 	}
 
 	mg.segments = mg.segments[idx:]
@@ -226,5 +253,4 @@ func (mg *MapGenerator) renderFrame(e *gocgl.Engine, angle float64) bool {
 	}
 
 	return true
-
 }
