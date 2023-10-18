@@ -15,8 +15,8 @@ import (
 
 const (
 	FACTOR = 100
-	WIDTH  = 16 * FACTOR
-	HEIGHT = 9 * FACTOR
+	WIDTH  = 9 * FACTOR
+	HEIGHT = 16 * FACTOR
 
 	COLOR_BLK = 0xff000000
 	COLOR_WHT = 0xffffffff
@@ -75,7 +75,6 @@ type MapGenerator struct {
 }
 
 func parseLines(lines []string) *MapGenerator {
-
 	dataPoints := make(map[string][]DataPoint)
 
 	for _, line := range lines[1:] {
@@ -160,8 +159,17 @@ func lineFromSegment(seg [2]DataPoint) gocgl.LineZ {
 	return gocgl.LineZ{P1: p1, P2: p2}
 }
 
+type User struct {
+	id       string
+	region   string
+	journeys []Journey
+}
+type Journey struct {
+	product  string
+	polyLine []gocgl.PointZ
+}
+
 func main() {
-	start := time.Now()
 	contents, err := os.ReadFile("examples/map/locations.csv")
 	if err != nil {
 		panic(err)
@@ -170,7 +178,6 @@ func main() {
 	csv_str := string(contents)
 	lines := strings.Split(csv_str, "\n")
 	mapGen := parseLines(lines)
-	fmt.Println("time to parse:", time.Since(start))
 
 	counter := 0
 
@@ -179,17 +186,12 @@ func main() {
 	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
 	engine.Layers[LAYER_ROAD].FillWithColor(COLOR_BLK)
 
-	calcD := time.Duration(0)
-	renderD := time.Duration(0)
-
 	var wg sync.WaitGroup
-	vch := engine.VideoWriter("videos/map.mp4", WIDTH, HEIGHT, &wg)
+	vch := engine.VideoWriter(".videos/map.mp4", WIDTH, HEIGHT, &wg)
 
 	for handleEvents() {
 
-		start := time.Now()
 		goOn := mapGen.renderFrame(engine)
-		calcD += time.Since(start)
 		if !goOn {
 			break
 		}
@@ -197,26 +199,13 @@ func main() {
 		progressBar(&counter, nFrames)
 
 		wg.Wait()
-
-		start = time.Now()
 		engine.Render()
-		renderD += time.Since(start)
 		wg.Add(1)
-		// engine.Image.WritePPM(fmt.Sprintf("map_frames/out%04d.ppm", counter))
 		vch <- engine.Image
 	}
 	wg.Wait()
 	close(vch)
-
 	fmt.Println()
-	fmt.Println("calcD", calcD)
-	fmt.Println("renderD", renderD)
-	fmt.Println("alphaD", alphaD)
-	fmt.Println("preD", preD)
-	fmt.Println("renderlineD", renderlineD)
-	fmt.Println("renderWlineD", renderWlineD)
-
-	fmt.Println("forD", forD)
 }
 
 func progressBar(frame *int, nFrames int) {
@@ -231,37 +220,24 @@ func progressBar(frame *int, nFrames int) {
 
 func lineOutOfBounds(l *gocgl.LineZ) bool {
 	factor := 4.0
-	return l.P1.X < -factor || l.P1.X > factor || l.P1.Y < -factor || l.P1.Y > factor ||
-		l.P2.X < -factor || l.P2.X > factor || l.P2.Y < -factor || l.P2.Y > factor || l.P1.Z < 0 || l.P2.Z < 0
+	return l.P1.X < -factor ||
+		l.P1.X > factor ||
+		l.P1.Y < -factor ||
+		l.P1.Y > factor ||
+		l.P2.X < -factor ||
+		l.P2.X > factor ||
+		l.P2.Y < -factor ||
+		l.P2.Y > factor ||
+		l.P1.Z < 0 ||
+		l.P2.Z < 0
 }
-
-func rotateLine(l *gocgl.LineZ, angle float64) {
-	// l.P1.RotateZ(0, 0, angle)
-	// l.P2.RotateZ(0, 0, angle)
-	// l.P1.RotateX(0, 0.5, -math.Pi/3)
-	// l.P2.RotateX(0, 0.5, -math.Pi/3)
-	// l.P1.Y -= 0.1
-	// l.P2.Y -= 0.1
-}
-
-var (
-	alphaD       = time.Duration(0)
-	forD         = time.Duration(0)
-	preD         = time.Duration(0)
-	renderlineD  = time.Duration(0)
-	renderWlineD = time.Duration(0)
-)
 
 func (mg *MapGenerator) renderFrame(e *gocgl.MLEngine) bool {
-	start := time.Now()
 	e.Layers[LAYER_ASSET].ApplyAlphaReduction(FADE_FACTOR)
 	e.Layers[LAYER_OTHERS].ApplyAlphaReduction(FADE_FACTOR)
-	alphaD += time.Since(start)
 	mg.t = mg.t.Add(TIME_PER_FRAME)
 	idx := 0
-	start = time.Now()
 	for len(mg.segments) > 1 {
-		start := time.Now()
 		seg := mg.segments[idx]
 		idx++
 		if !seg[0].tm.Before(mg.t) {
@@ -274,21 +250,15 @@ func (mg *MapGenerator) renderFrame(e *gocgl.MLEngine) bool {
 		if l.Length() > 0.05 {
 			continue
 		}
-		preD += time.Since(start)
 
 		if seg[0].id == mg.asset {
-			start := time.Now()
 			l.RenderWidth(e.Layers[LAYER_ASSET], COLOR_ASSET, 3.0)
-			renderWlineD += time.Since(start)
 			continue
 		}
 
-		start = time.Now()
 		l.Render(e.Layers[LAYER_OTHERS], COLOR_OTHERS)
 		l.Render(e.Layers[LAYER_ROAD], COLOR_ROAD)
-		renderlineD += time.Since(start)
 	}
-	forD += time.Since(start)
 
 	mg.segments = mg.segments[idx:]
 
