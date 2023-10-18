@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -19,7 +20,7 @@ import (
 const (
 	FACTOR = 100
 	WIDTH  = 9 * FACTOR
-	HEIGHT = 9 * FACTOR
+	HEIGHT = 16 * FACTOR
 
 	COLOR_BLK = 0xff000000
 	COLOR_WHT = 0xffffffff
@@ -30,13 +31,25 @@ const (
 	COLOR_CYN = 0xff00ffff
 	COLOR_MAG = 0xffff00ff
 
-	COLOR_ROAD   = 0xff000055
-	COLOR_OTHERS = 0xff7145d6
-	COLOR_ASSET  = COLOR_WHT
+	MORADUL = 0xff7145d6
 
-	FADE_FACTOR = 0.95
+	COLOR_OTHERS_BG = 0xff434242
+	COLOR_OTHERS    = 0xff696868
+	// COLOR_OTHERS   = 0xff9968b8
+	COLOR_BG       = 0xff1a1a38
+	COLOR_ASSET_BG = 0xffff83c5
+	COLOR_ASSET    = 0xffffb3f5
+	// COLOR_ASSET    = 0xffffffff
 
-	TIME_PER_FRAME = 10 * time.Second
+	FADE_FACTOR   = 0.95
+	OFFSET_FACTOR = 1.0
+	ZOOM_FACTOR   = 4.0
+
+	VIDEO_TIME_S = 30
+	FPS          = 30
+	N_FRAMES     = VIDEO_TIME_S * FPS
+
+	ASSET_TIME_PER_FRAME = 10 * time.Second
 )
 
 type Layer uint8
@@ -102,7 +115,7 @@ func (b *BBox) mergeBBox(other BBox) {
 	b.minLon = math.Min(b.minLon, other.minLon)
 }
 
-func parseJourney(js JourneyJson) (*Journey, BBox) {
+func parseJourney(js JourneyJson) (*Journey, BBox, int) {
 	latlons := [][2]float64{}
 	err := json.Unmarshal([]byte(js.Polylines), &latlons)
 	if err != nil {
@@ -112,7 +125,7 @@ func parseJourney(js JourneyJson) (*Journey, BBox) {
 	/// SUPER HACKY REGION FILTER
 	for i := range latlons {
 		if latlons[i][1] > -3 {
-			return nil, BBox{}
+			return nil, BBox{}, 0
 		}
 	}
 
@@ -138,7 +151,7 @@ func parseJourney(js JourneyJson) (*Journey, BBox) {
 		}
 
 		if latlons[i][1] > -3 {
-			return nil, bbox
+			return nil, bbox, 0
 		}
 
 		segments[i] = gocgl.LineZ{
@@ -160,7 +173,7 @@ func parseJourney(js JourneyJson) (*Journey, BBox) {
 		DriverID:    js.DriverID,
 		ProductName: js.ProductName,
 		Polyline:    segments,
-	}, bbox
+	}, bbox, len(segments)
 }
 
 func toWebMercator(latlon [2]float64) [2]float64 {
@@ -179,19 +192,18 @@ func toWebMercator(latlon [2]float64) [2]float64 {
 }
 
 func normalizeUserJourneys(journeys []Journey, bbox BBox) {
-	denom := math.Min(bbox.maxLat-bbox.minLat, bbox.maxLon-bbox.minLon)
-	zoomFactor := 2.0
+	denom := math.Max(bbox.maxLat-bbox.minLat, bbox.maxLon-bbox.minLon)
 	for i := range journeys {
 		for j, l := range journeys[i].Polyline {
-			journeys[i].Polyline[j].P1.X = ((l.P1.X-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * zoomFactor
-			journeys[i].Polyline[j].P1.Y = -((l.P1.Y-bbox.minLat)/denom - (bbox.maxLat-bbox.minLat)/denom/2) * zoomFactor
-			journeys[i].Polyline[j].P2.X = ((l.P2.X-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * zoomFactor
-			journeys[i].Polyline[j].P2.Y = -((l.P2.Y-bbox.minLat)/denom - (bbox.maxLat-bbox.minLat)/denom/2) * zoomFactor
+			journeys[i].Polyline[j].P1.X = ((l.P1.X-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * ZOOM_FACTOR
+			journeys[i].Polyline[j].P1.Y = -((l.P1.Y-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR
+			journeys[i].Polyline[j].P2.X = ((l.P2.X-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * ZOOM_FACTOR
+			journeys[i].Polyline[j].P2.Y = -((l.P2.Y-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR
 		}
 	}
 }
 
-func parseUserJourneys(jsonStr []byte) ([]Journey, BBox) {
+func parseUserJourneys(jsonStr []byte) ([]Journey, BBox, int) {
 	var journeysJson []JourneyJson
 	err := json.Unmarshal(jsonStr, &journeysJson)
 	if err != nil {
@@ -199,37 +211,35 @@ func parseUserJourneys(jsonStr []byte) ([]Journey, BBox) {
 	}
 	journeys := make([]Journey, 0)
 	generalBBox := newBBox()
+	totLines := 0
 	for _, j := range journeysJson {
-		journeyParsed, bbox := parseJourney(j)
+		journeyParsed, bbox, nLines := parseJourney(j)
 		if journeyParsed == nil {
 			continue
 		}
-		// journeys[i] = *journeyParsed
+		totLines += nLines
 		journeys = append(journeys, *journeyParsed)
 		generalBBox.mergeBBox(bbox)
 	}
 
 	normalizeUserJourneys(journeys, generalBBox)
-
-	return journeys, generalBBox
+	return journeys, generalBBox, totLines
 }
 
 type Renderer struct {
 	assetLines   []TimedSegment
 	journeyLines []gocgl.LineZ
 	t            time.Time
+	nLines       int
 }
 
-func getJourneyLines() ([]gocgl.LineZ, BBox) {
+func getJourneyLines() ([]gocgl.LineZ, BBox, int) {
 	contents, err := os.ReadFile("examples/explorers/journeys_David_2023.json")
 	if err != nil {
 		panic(err)
 	}
 
-	journeys, bbox := parseUserJourneys(contents)
-
-	engine := gocgl.NewMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
-	engine.Layers[LAYER_ROAD].FillWithColor(0xff555555)
+	journeys, bbox, totLines := parseUserJourneys(contents)
 
 	rawLines := make([]gocgl.LineZ, 0)
 	for _, journey := range journeys {
@@ -237,76 +247,99 @@ func getJourneyLines() ([]gocgl.LineZ, BBox) {
 			rawLines = append(rawLines, line)
 		}
 	}
-	return rawLines, bbox
+	return rawLines, bbox, totLines
 }
 
 func main() {
-
-	// var wg sync.WaitGroup
-	// vch := engine.VideoWriter(".videos/map.mp4", WIDTH, HEIGHT, &wg)
-
-	rawJourneyLines, bbox := getJourneyLines()
+	rawJourneyLines, bbox, totLines := getJourneyLines()
 	rawAssetLines, minTime := getAssetLines(bbox)
 
 	renderer := Renderer{
 		journeyLines: rawJourneyLines,
 		assetLines:   rawAssetLines,
 		t:            minTime,
+		nLines:       totLines,
 	}
 
-	engine := gocgl.NewMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
-	engine.Layers[LAYER_ROAD].FillWithColor(0xff005555)
+	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
+	engine.Layers[LAYER_ROAD].FillWithColor(COLOR_BG)
+	var wg sync.WaitGroup
+	vch := engine.VideoWriter(".videos/map_mad.mp4", WIDTH, HEIGHT, &wg)
 	counter := 0
+
+	ls := []gocgl.LineZ{
+		{
+			P1: gocgl.PointZ{X: -ZOOM_FACTOR / 2, Y: -ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
+			P2: gocgl.PointZ{X: ZOOM_FACTOR / 2, Y: -ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
+		},
+		{
+			P1: gocgl.PointZ{X: ZOOM_FACTOR / 2, Y: -ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
+			P2: gocgl.PointZ{X: ZOOM_FACTOR / 2, Y: ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
+		},
+		{
+			P1: gocgl.PointZ{X: ZOOM_FACTOR / 2, Y: ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
+			P2: gocgl.PointZ{X: -ZOOM_FACTOR / 2, Y: ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
+		},
+		{
+			P1: gocgl.PointZ{X: -ZOOM_FACTOR / 2, Y: ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
+			P2: gocgl.PointZ{X: -ZOOM_FACTOR / 2, Y: -ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
+		},
+	}
+	_ = ls
+
 	for handleEvents() {
-		counter++
-		goOn := renderer.renderFrame(engine)
+		// counter++
+		goOn := renderer.renderJourneysToFrame(engine)
 
 		if !goOn {
 			break
 		}
 		renderer.renderAssetsToFrame(engine)
+		progressBar(&counter, N_FRAMES)
 
-		// wg.Wait()
+		for _, l := range ls {
+			l.RenderWidth(engine.Layers[LAYER_ROAD], COLOR_CYN, 4)
+		}
+
+		wg.Wait()
 		engine.Render()
-		// wg.Add(1)
-		// vch <- engine.Image
+		wg.Add(1)
+		vch <- engine.Image
 	}
-	// wg.Wait()
-	// close(vch)
+	wg.Wait()
+	close(vch)
 	fmt.Println()
 }
 
-// func progressBar(frame *int, nFrames int) {
-// 	*frame++
-// 	barSize := float64(30.0)
-// 	progress := float64(*frame) / float64(nFrames)
+func progressBar(frame *int, nFrames int) {
+	*frame++
+	barSize := float64(30.0)
+	progress := float64(*frame) / float64(nFrames)
 
-// 	bar := strings.Repeat("#", int(progress*barSize))
-// 	bar += strings.Repeat("-", int(barSize)-len(bar)-1)
-// 	fmt.Printf("\rframe %04d/%d [%s]", *frame, nFrames, bar)
-// }
+	bar := strings.Repeat("#", int(progress*barSize))
+	bar += strings.Repeat("-", int(barSize)-len(bar)-1)
+	fmt.Printf("\rframe %04d/%d [%s]", *frame, nFrames, bar)
+}
 
-var speedIncr float64 = 10
-
-func (r *Renderer) renderFrame(e *gocgl.MLEngine) bool {
+func (r *Renderer) renderJourneysToFrame(e *gocgl.MLEngine) bool {
 	e.Layers[LAYER_USER].ApplyAlphaReduction(FADE_FACTOR)
+	nSegmentsToRender := int(r.nLines / N_FRAMES)
+
 	for i, line := range r.journeyLines {
-		if i > int(speedIncr) {
-			speedIncr = math.Min(100, speedIncr+0.1)
+		if i > nSegmentsToRender {
 			r.journeyLines = r.journeyLines[i:]
 			return true
 		}
-		line.RenderWidth(e.Layers[LAYER_USER], COLOR_WHT, 2)
-		line.Render(e.Layers[LAYER_USER_PATH], COLOR_YEL)
+		line.RenderWidth(e.Layers[LAYER_USER], COLOR_ASSET, 5)
+		line.RenderWidth(e.Layers[LAYER_USER_PATH], COLOR_ASSET_BG, 2)
 	}
 	return false
-
 }
 
 func (r *Renderer) renderAssetsToFrame(e *gocgl.MLEngine) bool {
 	e.Layers[LAYER_ASSETS].ApplyAlphaReduction(FADE_FACTOR)
 
-	r.t = r.t.Add(TIME_PER_FRAME)
+	r.t = r.t.Add(ASSET_TIME_PER_FRAME)
 	idx := 0
 	for len(r.assetLines) > 1 {
 		seg := r.assetLines[idx]
@@ -322,8 +355,8 @@ func (r *Renderer) renderAssetsToFrame(e *gocgl.MLEngine) bool {
 			continue
 		}
 
-		l.Render(e.Layers[LAYER_ASSET_PATH], COLOR_ROAD)
-		l.Render(e.Layers[LAYER_ASSETS], COLOR_OTHERS)
+		l.Render(e.Layers[LAYER_ASSET_PATH], COLOR_OTHERS_BG)
+		l.RenderWidth(e.Layers[LAYER_ASSETS], COLOR_OTHERS, 1)
 	}
 
 	r.assetLines = r.assetLines[idx:]
@@ -349,42 +382,11 @@ func lineOutOfBounds(l *gocgl.LineZ) bool {
 		l.P2.Z < 0
 }
 
-// func (mg *MapGenerator) renderFrame(e *gocgl.MLEngine) bool {
-// 	e.Layers[LAYER_ASSET].ApplyAlphaReduction(FADE_FACTOR)
-// 	e.Layers[LAYER_OTHERS].ApplyAlphaReduction(FADE_FACTOR)
-// 	mg.t = mg.t.Add(TIME_PER_FRAME)
-// 	idx := 0
-// 	for len(mg.segments) > 1 {
-// 		seg := mg.segments[idx]
-// 		idx++
-// 		if !seg[0].tm.Before(mg.t) {
-// 			break
-// 		}
-// 		l := lineFromSegment(seg)
-// 		if lineOutOfBounds(&l) {
-// 			continue
-// 		}
-// 		if l.Length() > 0.05 {
-// 			continue
-// 		}
+/*
 
-// 		if seg[0].id == mg.asset {
-// 			l.RenderWidth(e.Layers[LAYER_ASSET], COLOR_ASSET, 3.0)
-// 			continue
-// 		}
+	ASSET SECTION
 
-// 		l.Render(e.Layers[LAYER_OTHERS], COLOR_OTHERS)
-// 		l.Render(e.Layers[LAYER_ROAD], COLOR_ROAD)
-// 	}
-
-// 	mg.segments = mg.segments[idx:]
-
-// 	if idx >= len(mg.segments) {
-// 		return false
-// 	}
-
-// 	return true
-// }
+*/
 
 type DataPoint struct {
 	lat float64
@@ -483,16 +485,15 @@ func parseLines(lines []string, bbox BBox) ([]TimedSegment, time.Time) {
 }
 
 func lineFromSegment(seg [2]DataPoint, bbox BBox) gocgl.LineZ {
-	zoomFactor := 2.0
 	denom := math.Min(bbox.maxLat-bbox.minLat, bbox.maxLon-bbox.minLon)
 	p1 := gocgl.PointZ{
-		Y: -((seg[0].lat-bbox.minLat)/denom - (bbox.maxLat-bbox.minLat)/denom/2) * zoomFactor,
-		X: ((seg[0].lon-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * zoomFactor,
+		Y: -((seg[0].lat-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR,
+		X: ((seg[0].lon-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * ZOOM_FACTOR,
 		Z: 1,
 	}
 	p2 := gocgl.PointZ{
-		Y: -((seg[1].lat-bbox.minLat)/denom - (bbox.maxLat-bbox.minLat)/denom/2) * zoomFactor,
-		X: ((seg[1].lon-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * zoomFactor,
+		Y: -((seg[1].lat-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR,
+		X: ((seg[1].lon-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * ZOOM_FACTOR,
 		Z: 1,
 	}
 	return gocgl.LineZ{P1: p1, P2: p2}
