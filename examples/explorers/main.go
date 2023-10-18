@@ -228,12 +228,17 @@ func parseUserJourneys(jsonStr []byte) ([]Journey, BBox, int) {
 
 type Renderer struct {
 	assetLines   []TimedSegment
-	journeyLines []gocgl.LineZ
+	journeyLines []JourneyLine
 	t            time.Time
 	nLines       int
 }
 
-func getJourneyLines() ([]gocgl.LineZ, BBox, int) {
+type JourneyLine struct {
+	Line  gocgl.LineZ
+	color uint32
+}
+
+func getJourneyLines() ([]JourneyLine, BBox, int) {
 	contents, err := os.ReadFile("examples/explorers/journeys_David_2023.json")
 	if err != nil {
 		panic(err)
@@ -241,12 +246,17 @@ func getJourneyLines() ([]gocgl.LineZ, BBox, int) {
 
 	journeys, bbox, totLines := parseUserJourneys(contents)
 
-	rawLines := make([]gocgl.LineZ, 0)
+	rawLines := make([]JourneyLine, 0)
 	for _, journey := range journeys {
 		for _, line := range journey.Polyline {
-			rawLines = append(rawLines, line)
+			rawLines = append(rawLines, JourneyLine{
+				Line:  line,
+				color: COLOR_WHT,
+			},
+			)
 		}
 	}
+
 	return rawLines, bbox, totLines
 }
 
@@ -288,7 +298,6 @@ func main() {
 	_ = ls
 
 	for handleEvents() {
-		// counter++
 		goOn := renderer.renderJourneysToFrame(engine)
 
 		if !goOn {
@@ -330,8 +339,8 @@ func (r *Renderer) renderJourneysToFrame(e *gocgl.MLEngine) bool {
 			r.journeyLines = r.journeyLines[i:]
 			return true
 		}
-		line.RenderWidth(e.Layers[LAYER_USER], COLOR_ASSET, 5)
-		line.RenderWidth(e.Layers[LAYER_USER_PATH], COLOR_ASSET_BG, 2)
+		line.Line.RenderWidth(e.Layers[LAYER_USER], line.color, 5)
+		line.Line.RenderWidth(e.Layers[LAYER_USER_PATH], COLOR_ASSET_BG, 2)
 	}
 	return false
 }
