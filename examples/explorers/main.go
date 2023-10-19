@@ -52,6 +52,13 @@ const (
 	ASSET_TIME_PER_FRAME = 10 * time.Second
 )
 
+var PRODUCT_COLOR_MAP = map[string]uint32{
+	"Cabify Airport": 0xff0000ff,
+	"Cabify Eco":     0xff00ff00,
+	"Cabify II":      0xffff0000,
+	"Cuanto Antes":   0xff00ffff,
+}
+
 type Layer uint8
 
 const (
@@ -246,9 +253,12 @@ func getJourneyLines() ([]JourneyLine, BBox, int) {
 
 	journeys, bbox, totLines := parseUserJourneys(contents)
 
+	productMap := map[string]bool{}
+
 	rawLines := make([]JourneyLine, 0)
 	for _, journey := range journeys {
 		for _, line := range journey.Polyline {
+			productMap[journey.ProductName] = true
 			rawLines = append(rawLines, JourneyLine{
 				Line:  line,
 				color: COLOR_WHT,
@@ -496,13 +506,13 @@ func parseLines(lines []string, bbox BBox) ([]TimedSegment, time.Time) {
 func lineFromSegment(seg [2]DataPoint, bbox BBox) gocgl.LineZ {
 	denom := math.Min(bbox.maxLat-bbox.minLat, bbox.maxLon-bbox.minLon)
 	p1 := gocgl.PointZ{
-		Y: -((seg[0].lat-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR,
 		X: ((seg[0].lon-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * ZOOM_FACTOR,
+		Y: -((seg[0].lat-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR,
 		Z: 1,
 	}
 	p2 := gocgl.PointZ{
-		Y: -((seg[1].lat-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR,
 		X: ((seg[1].lon-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * ZOOM_FACTOR,
+		Y: -((seg[1].lat-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR,
 		Z: 1,
 	}
 	return gocgl.LineZ{P1: p1, P2: p2}
