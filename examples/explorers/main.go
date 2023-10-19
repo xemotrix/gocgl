@@ -10,11 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/twpayne/go-proj/v10"
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/xemotrix/gocgl"
 	"golang.org/x/exp/slices"
-
-	proj "github.com/twpayne/go-proj/v10"
 )
 
 const (
