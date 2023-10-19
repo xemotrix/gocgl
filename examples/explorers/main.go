@@ -36,14 +36,16 @@ const (
 	COLOR_OTHERS_BG = 0xff434242
 	COLOR_OTHERS    = 0xff696868
 	// COLOR_OTHERS   = 0xff9968b8
-	COLOR_BG       = 0xff1a1a38
-	COLOR_ASSET_BG = 0xffff83c5
+	COLOR_BG = 0xff1a1a38
+	// COLOR_ASSET_BG = 0xffff83c5
+	COLOR_ASSET_BG = MORADUL
 	COLOR_ASSET    = 0xffffb3f5
 	// COLOR_ASSET    = 0xffffffff
 
 	FADE_FACTOR   = 0.95
 	OFFSET_FACTOR = 1.0
 	ZOOM_FACTOR   = 4.0
+	CHANGE_FACTOR = 1.5
 
 	VIDEO_TIME_S = 30
 	FPS          = 30
@@ -308,17 +310,21 @@ func main() {
 	_ = ls
 
 	for handleEvents() {
+		if counter > N_FRAMES {
+			break
+		}
+
 		goOn := renderer.renderJourneysToFrame(engine)
 
 		if !goOn {
-			break
+			// break
+			renderer.renderAssetsToFrame(engine)
 		}
-		renderer.renderAssetsToFrame(engine)
-		progressBar(&counter, N_FRAMES)
+		progressBar(&counter, N_FRAMES+10000)
 
-		for _, l := range ls {
-			l.RenderWidth(engine.Layers[LAYER_ROAD], COLOR_CYN, 4)
-		}
+		// for _, l := range ls {
+		// 	l.RenderWidth(engine.Layers[LAYER_ROAD], COLOR_CYN, 4)
+		// }
 
 		wg.Wait()
 		engine.Render()
@@ -342,7 +348,7 @@ func progressBar(frame *int, nFrames int) {
 
 func (r *Renderer) renderJourneysToFrame(e *gocgl.MLEngine) bool {
 	e.Layers[LAYER_USER].ApplyAlphaReduction(FADE_FACTOR)
-	nSegmentsToRender := int(r.nLines / N_FRAMES)
+	nSegmentsToRender := int(r.nLines / (N_FRAMES / CHANGE_FACTOR))
 
 	for i, line := range r.journeyLines {
 		if i > nSegmentsToRender {
@@ -352,6 +358,7 @@ func (r *Renderer) renderJourneysToFrame(e *gocgl.MLEngine) bool {
 		line.Line.RenderWidth(e.Layers[LAYER_USER], line.color, 5)
 		line.Line.RenderWidth(e.Layers[LAYER_USER_PATH], COLOR_ASSET_BG, 2)
 	}
+	e.Layers[LAYER_USER].FillWithColor(0x00000000)
 	return false
 }
 
@@ -504,7 +511,7 @@ func parseLines(lines []string, bbox BBox) ([]TimedSegment, time.Time) {
 }
 
 func lineFromSegment(seg [2]DataPoint, bbox BBox) gocgl.LineZ {
-	denom := math.Min(bbox.maxLat-bbox.minLat, bbox.maxLon-bbox.minLon)
+	denom := math.Max(bbox.maxLat-bbox.minLat, bbox.maxLon-bbox.minLon)
 	p1 := gocgl.PointZ{
 		X: ((seg[0].lon-bbox.minLon)/denom - (bbox.maxLon-bbox.minLon)/denom/2) * ZOOM_FACTOR,
 		Y: -((seg[0].lat-bbox.minLat)/denom-(bbox.maxLat-bbox.minLat)/denom/2)*ZOOM_FACTOR - OFFSET_FACTOR,
