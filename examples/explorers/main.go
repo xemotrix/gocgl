@@ -248,7 +248,7 @@ type JourneyLine struct {
 }
 
 func getJourneyLines() ([]JourneyLine, BBox, int) {
-	contents, err := os.ReadFile("examples/explorers/journeys_David_2023.json")
+	contents, err := os.ReadFile("examples/explorers/journeys_roberto_perez.json")
 	if err != nil {
 		panic(err)
 	}
