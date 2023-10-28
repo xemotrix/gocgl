@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -283,8 +282,8 @@ func main() {
 
 	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
 	engine.Layers[LAYER_ROAD].FillWithColor(COLOR_BG)
-	var wg sync.WaitGroup
-	vch := engine.VideoWriter(".videos/map_mad.mp4", WIDTH, HEIGHT, &wg)
+	// var wg sync.WaitGroup
+	// vch := engine.VideoWriter(".videos/map_mad.mp4", WIDTH, HEIGHT, &wg)
 	counter := 0
 
 	ls := []gocgl.LineZ{
@@ -320,13 +319,13 @@ func main() {
 			l.RenderWidth(engine.Layers[LAYER_ROAD], COLOR_CYN, 4)
 		}
 
-		wg.Wait()
+		// wg.Wait()
 		engine.Render()
-		wg.Add(1)
-		vch <- engine.Image
+		// wg.Add(1)
+		// vch <- engine.Image
 	}
-	wg.Wait()
-	close(vch)
+	// wg.Wait()
+	// close(vch)
 	fmt.Println()
 }
 
