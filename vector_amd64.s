@@ -103,6 +103,7 @@ TEXT ·OverlayChunk(SB),NOSPLIT,$0
 	MOVQ	a_prt+0(FP), R8
 	MOVQ	b_prt+8(FP), R12
 	MOVD	lenght+16(FP), SI
+	SHRQ	$3, SI	// len /= 8
 
 	LOAD_STATIC(·alpha_shuffle_mask,   Y5)
 	LOAD_STATIC(·green_pack_mask,      Y6)
@@ -137,6 +138,9 @@ loop:
 
 	// extract the alpha channel for each pixel into two words (zero extended)
 	VPSHUFB	Y5, Y1, Y2
+	// if alpha of foreground pixels are all zero, continue to next 8 pixels
+	VPTEST	Y2, Y2
+	JZ	continue
 
 	ALPHA_MUL(Y11, Y15)	// RED
 	ALPHA_MUL(Y9, Y14)	// GREEN
@@ -166,15 +170,14 @@ loop:
 	MOVD $0xff000000, BX
 	MOVD	BX, X12
 	VPBROADCASTD X12, Y12
-
 	// bitwise OR all the things!!
 	VPOR	Y15, Y14, Y15
 	VPOR	Y15, Y13, Y15
 	VPOR	Y15, Y12, Y15
-
 	// store the result in the background array
 	VMOVDQU	Y15, (R8)
 
+continue:
 	// loopy loop
 	ADDQ	$32, R8
 	ADDQ	$32, R12
@@ -185,5 +188,4 @@ loop:
 	RET
 
 
-
-
+// func applyAlphaReductionASM(ptr *byte, delta uint8, length int)

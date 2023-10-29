@@ -7,3 +7,5 @@ require (
 	github.com/veandco/go-sdl2 v0.4.34
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 )
+
+require golang.org/x/sys v0.13.0 // indirect

@@ -269,6 +269,12 @@ func getJourneyLines() ([]JourneyLine, BBox, int) {
 	return rawLines, bbox, totLines
 }
 
+var (
+	alphaTime  = time.Duration(0)
+	drawTime   = time.Duration(0)
+	renderTime = time.Duration(0)
+)
+
 func main() {
 	rawJourneyLines, bbox, totLines := getJourneyLines()
 	rawAssetLines, minTime := getAssetLines(bbox)
@@ -281,30 +287,11 @@ func main() {
 	}
 
 	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
+	// engine := gocgl.NewMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
 	engine.Layers[LAYER_ROAD].FillWithColor(COLOR_BG)
 	// var wg sync.WaitGroup
 	// vch := engine.VideoWriter(".videos/map_mad.mp4", WIDTH, HEIGHT, &wg)
 	counter := 0
-
-	ls := []gocgl.LineZ{
-		{
-			P1: gocgl.PointZ{X: -ZOOM_FACTOR / 2, Y: -ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
-			P2: gocgl.PointZ{X: ZOOM_FACTOR / 2, Y: -ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
-		},
-		{
-			P1: gocgl.PointZ{X: ZOOM_FACTOR / 2, Y: -ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
-			P2: gocgl.PointZ{X: ZOOM_FACTOR / 2, Y: ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
-		},
-		{
-			P1: gocgl.PointZ{X: ZOOM_FACTOR / 2, Y: ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
-			P2: gocgl.PointZ{X: -ZOOM_FACTOR / 2, Y: ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
-		},
-		{
-			P1: gocgl.PointZ{X: -ZOOM_FACTOR / 2, Y: ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
-			P2: gocgl.PointZ{X: -ZOOM_FACTOR / 2, Y: -ZOOM_FACTOR/2 - OFFSET_FACTOR, Z: 1},
-		},
-	}
-	_ = ls
 
 	for handleEvents() {
 		goOn := renderer.renderJourneysToFrame(engine)
@@ -313,34 +300,38 @@ func main() {
 			break
 		}
 		renderer.renderAssetsToFrame(engine)
-		progressBar(&counter, N_FRAMES)
-
-		for _, l := range ls {
-			l.RenderWidth(engine.Layers[LAYER_ROAD], COLOR_CYN, 4)
-		}
+		counter++
+		progressBar(counter, N_FRAMES)
 
 		// wg.Wait()
+		timeStart := time.Now()
 		engine.Render()
+		renderTime += time.Since(timeStart)
 		// wg.Add(1)
 		// vch <- engine.Image
 	}
+
 	// wg.Wait()
 	// close(vch)
 	fmt.Println()
+
+	fmt.Println("draw time: ", drawTime)
+	fmt.Println("alpha time: ", alphaTime)
+	fmt.Println("render time: ", renderTime)
 }
 
-func progressBar(frame *int, nFrames int) {
-	*frame++
+func progressBar(frame int, nFrames int) {
 	barSize := float64(30.0)
-	progress := float64(*frame) / float64(nFrames)
-
+	progress := float64(frame) / float64(nFrames)
 	bar := strings.Repeat("#", int(progress*barSize))
 	bar += strings.Repeat("-", int(barSize)-len(bar)-1)
-	fmt.Printf("\rframe %04d/%d [%s]", *frame, nFrames, bar)
+	fmt.Printf("\rframe %04d/%d [%s]", frame, nFrames, bar)
 }
 
 func (r *Renderer) renderJourneysToFrame(e *gocgl.MLEngine) bool {
+	t := time.Now()
 	e.Layers[LAYER_USER].ApplyAlphaReduction(FADE_FACTOR)
+	alphaTime += time.Since(t)
 	nSegmentsToRender := int(r.nLines / N_FRAMES)
 
 	for i, line := range r.journeyLines {
@@ -348,14 +339,18 @@ func (r *Renderer) renderJourneysToFrame(e *gocgl.MLEngine) bool {
 			r.journeyLines = r.journeyLines[i:]
 			return true
 		}
+		t := time.Now()
 		line.Line.RenderWidth(e.Layers[LAYER_USER], line.color, 5)
 		line.Line.RenderWidth(e.Layers[LAYER_USER_PATH], COLOR_ASSET_BG, 2)
+		drawTime += time.Since(t)
 	}
 	return false
 }
 
 func (r *Renderer) renderAssetsToFrame(e *gocgl.MLEngine) bool {
+	t := time.Now()
 	e.Layers[LAYER_ASSETS].ApplyAlphaReduction(FADE_FACTOR)
+	alphaTime += time.Since(t)
 
 	r.t = r.t.Add(ASSET_TIME_PER_FRAME)
 	idx := 0
@@ -373,8 +368,10 @@ func (r *Renderer) renderAssetsToFrame(e *gocgl.MLEngine) bool {
 			continue
 		}
 
+		t = time.Now()
 		l.Render(e.Layers[LAYER_ASSET_PATH], COLOR_OTHERS_BG)
 		l.RenderWidth(e.Layers[LAYER_ASSETS], COLOR_OTHERS, 1)
+		drawTime += time.Since(t)
 	}
 
 	r.assetLines = r.assetLines[idx:]

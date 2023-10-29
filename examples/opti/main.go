@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -35,16 +36,15 @@ func handleEvents() bool {
 
 func main() {
 
-	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, 4)
-	// engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, 2)
+	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, 8)
 	engine.Layers[0].FillWithColor(0xff990000)
 	engine.Layers[1].FillWithColor(0x81a2a3f4)
-	engine.Layers[2].FillWithColor(0x81a2a3f4)
-	engine.Layers[3].FillWithColor(0x81a2a3f4)
-
-	// fmt.Printf("%016x\n", engine.Layers[0].Arr[:10])
-	// engine.Layers[0].Overlay(engine.Layers[1])
-	// fmt.Printf("%016x\n", engine.Layers[0].Arr[:10])
+	engine.Layers[2].FillWithColor(0x00a2a3f4)
+	engine.Layers[3].FillWithColor(0x00a2a3f4)
+	engine.Layers[4].FillWithColor(0x00a2a3f4)
+	engine.Layers[5].FillWithColor(0x00a2a3f4)
+	engine.Layers[6].FillWithColor(0x00a2a3f4)
+	engine.Layers[7].FillWithColor(0x00a2a3f4)
 
 	counter := 0
 	tRender := time.Duration(0)

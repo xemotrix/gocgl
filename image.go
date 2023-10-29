@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"unsafe"
+
+	"golang.org/x/sys/cpu"
 )
 
 const PIXBYTES = 4
@@ -77,30 +79,34 @@ func (img *Image) CopyFrom(other *Image) {
 	copy(img.Zbuf, other.Zbuf)
 }
 
-// func (img *Image) Overlay(other *Image) {
-// 	pi := unsafe.Pointer(&img.Arr[0])
-// 	po := unsafe.Pointer(&other.Arr[0])
-// 	l := uintptr(len(img.Arr))
-// 	for index := uintptr(0); index < l; index += PIXBYTES {
-// 		bgraO := *(*[4]byte)((unsafe.Pointer)(uintptr(po) + index))
-// 		if bgraO[3] == 0x00 {
-// 			continue
-// 		}
-// 		bgraI := *(*[4]byte)((unsafe.Pointer)(uintptr(pi) + index))
-// 		alphaI := float32(bgraI[3]) / 0xff
-// 		alphaO := float32(bgraO[3]) / 0xff
-// 		overAlpha := alphaO + alphaI*(1-alphaO)
-// 		*(*[4]byte)((unsafe.Pointer)(uintptr(pi) + uintptr(index))) = [4]byte{
-// 			byte(((float32(bgraO[0]) * alphaO) + (float32(bgraI[0]) * alphaI * (1 - alphaO))) / overAlpha),
-// 			byte(((float32(bgraO[1]) * alphaO) + (float32(bgraI[1]) * alphaI * (1 - alphaO))) / overAlpha),
-// 			byte(((float32(bgraO[2]) * alphaO) + (float32(bgraI[2]) * alphaI * (1 - alphaO))) / overAlpha),
-// 			byte(overAlpha * 0xff),
-// 		}
-// 	}
-// }
+func (img *Image) overlay(other *Image) {
+	pi := unsafe.Pointer(&img.Arr[0])
+	po := unsafe.Pointer(&other.Arr[0])
+	l := uintptr(len(img.Arr))
+	for index := uintptr(0); index < l; index += PIXBYTES {
+		bgraO := *(*[4]byte)((unsafe.Pointer)(uintptr(po) + index))
+		if bgraO[3] == 0x00 {
+			continue
+		}
+		bgraI := *(*[4]byte)((unsafe.Pointer)(uintptr(pi) + index))
+		alphaI := float32(bgraI[3]) / 0xff
+		alphaO := float32(bgraO[3]) / 0xff
+		overAlpha := alphaO + alphaI*(1-alphaO)
+		*(*[4]byte)((unsafe.Pointer)(uintptr(pi) + uintptr(index))) = [4]byte{
+			byte(((float32(bgraO[0]) * alphaO) + (float32(bgraI[0]) * alphaI * (1 - alphaO))) / overAlpha),
+			byte(((float32(bgraO[1]) * alphaO) + (float32(bgraI[1]) * alphaI * (1 - alphaO))) / overAlpha),
+			byte(((float32(bgraO[2]) * alphaO) + (float32(bgraI[2]) * alphaI * (1 - alphaO))) / overAlpha),
+			byte(overAlpha * 0xff),
+		}
+	}
+}
 
 func (img *Image) Overlay(other *Image) {
-	OverlayChunk(&img.Arr[0], &other.Arr[0], len(img.Arr)/PIXBYTES/8)
+	if cpu.X86.HasAVX2 {
+		OverlayChunk(&img.Arr[0], &other.Arr[0], len(img.Arr)/PIXBYTES)
+	} else {
+		img.overlay(other)
+	}
 }
 
 func (img *Image) FillWithColor(color uint32) {
@@ -118,7 +124,8 @@ func (img *Image) ApplyColorFilter(color uint32) {
 	}
 }
 
-func (img *Image) ApplyAlphaReduction(delta float64) {
+func (img *Image) applyAlphaReduction(delta uint8) {
+	deltaF := float64(delta) / 0xff
 	p := unsafe.Pointer(&img.Arr[0])
 	l := uintptr(len(img.Arr))
 	for i := uintptr(0); i < l; i += PIXBYTES {
@@ -126,7 +133,15 @@ func (img *Image) ApplyAlphaReduction(delta float64) {
 		if alpha == 0x00 {
 			continue
 		}
-		*(*byte)(unsafe.Pointer(uintptr(p) + i + 3)) = byte(float64(alpha) * delta)
+		*(*byte)(unsafe.Pointer(uintptr(p) + i + 3)) = byte(float64(alpha) * deltaF)
+	}
+}
+
+func (img *Image) ApplyAlphaReductionASM(delta uint8) {
+	if cpu.X86.HasAVX2 {
+		applyAlphaReductionASM(&img.Arr[0], delta, len(img.Arr)/PIXBYTES)
+	} else {
+		img.applyAlphaReduction(delta)
 	}
 }
 
