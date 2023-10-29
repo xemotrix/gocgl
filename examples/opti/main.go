@@ -1,10 +1,6 @@
 package main
 
 import (
-	"fmt"
-
-	"time"
-
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/xemotrix/gocgl"
 )
@@ -37,7 +33,7 @@ func handleEvents() bool {
 func main() {
 
 	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, 8)
-	engine.Layers[0].FillWithColor(0xff990000)
+	engine.Layers[0].FillWithColor(0xf1998877)
 	engine.Layers[1].FillWithColor(0x81a2a3f4)
 	engine.Layers[2].FillWithColor(0x00a2a3f4)
 	engine.Layers[3].FillWithColor(0x00a2a3f4)
@@ -46,17 +42,19 @@ func main() {
 	engine.Layers[6].FillWithColor(0x00a2a3f4)
 	engine.Layers[7].FillWithColor(0x00a2a3f4)
 
-	counter := 0
-	tRender := time.Duration(0)
-	for handleEvents() {
-		counter++
-		tStart := time.Now()
-		engine.Render()
-		tRender += time.Since(tStart)
-		if counter > 100 {
-			break
-		}
-	}
-	fmt.Printf("Render time: %v\n", tRender)
+	engine.Layers[0].ApplyAlphaReduction(0xcd)
+
+	// counter := 0
+	// tRender := time.Duration(0)
+	// for handleEvents() {
+	// 	counter++
+	// 	tStart := time.Now()
+	// 	engine.Render()
+	// 	tRender += time.Since(tStart)
+	// 	if counter > 100 {
+	// 		break
+	// 	}
+	// }
+	// fmt.Printf("Render time: %v\n", tRender)
 
 }

@@ -31,7 +31,8 @@ const (
 	COLOR_OTHERS = 0xff7145d6
 	COLOR_ASSET  = COLOR_WHT
 
-	FADE_FACTOR = 0.95
+	// FADE_FACTOR = 0.95
+	FADE_FACTOR = 0xf2
 
 	TIME_PER_FRAME = 10 * time.Second
 

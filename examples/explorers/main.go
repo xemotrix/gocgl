@@ -40,7 +40,8 @@ const (
 	COLOR_ASSET    = 0xffffb3f5
 	// COLOR_ASSET    = 0xffffffff
 
-	FADE_FACTOR   = 0.95
+	// FADE_FACTOR   = 0.95
+	FADE_FACTOR   = 0xf2
 	OFFSET_FACTOR = 1.0
 	ZOOM_FACTOR   = 4.0
 
@@ -270,9 +271,10 @@ func getJourneyLines() ([]JourneyLine, BBox, int) {
 }
 
 var (
-	alphaTime  = time.Duration(0)
-	drawTime   = time.Duration(0)
-	renderTime = time.Duration(0)
+	alphaTime        = time.Duration(0)
+	drawJourneysTime = time.Duration(0)
+	drawAssetsTime   = time.Duration(0)
+	renderTime       = time.Duration(0)
 )
 
 func main() {
@@ -315,7 +317,8 @@ func main() {
 	// close(vch)
 	fmt.Println()
 
-	fmt.Println("draw time: ", drawTime)
+	fmt.Println("draw j time: ", drawJourneysTime)
+	fmt.Println("draw a time: ", drawAssetsTime)
 	fmt.Println("alpha time: ", alphaTime)
 	fmt.Println("render time: ", renderTime)
 }
@@ -342,7 +345,7 @@ func (r *Renderer) renderJourneysToFrame(e *gocgl.MLEngine) bool {
 		t := time.Now()
 		line.Line.RenderWidth(e.Layers[LAYER_USER], line.color, 5)
 		line.Line.RenderWidth(e.Layers[LAYER_USER_PATH], COLOR_ASSET_BG, 2)
-		drawTime += time.Since(t)
+		drawJourneysTime += time.Since(t)
 	}
 	return false
 }
@@ -371,7 +374,7 @@ func (r *Renderer) renderAssetsToFrame(e *gocgl.MLEngine) bool {
 		t = time.Now()
 		l.Render(e.Layers[LAYER_ASSET_PATH], COLOR_OTHERS_BG)
 		l.RenderWidth(e.Layers[LAYER_ASSETS], COLOR_OTHERS, 1)
-		drawTime += time.Since(t)
+		drawAssetsTime += time.Since(t)
 	}
 
 	r.assetLines = r.assetLines[idx:]

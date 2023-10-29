@@ -86,13 +86,12 @@ DATA ·red_shuffle_mask<>+28(SB)/4, $0x8080801e
 // 	return (red >> 8);
 // }
 
-#define ALPHA_MUL(mask_register, output_register) \
-	VPSHUFB	mask_register, Y1, Y3; \	// extract the red channel for each pixel into two words (zero extended)
-	VPMULLW Y2, Y3, Y3; \			// color *= alpha
-	VPADDW	Y3, Y8, Y3; \			// color += 0x80U
-	VPSHUFB	Y9, Y3, Y4; \			// color += color >> 8
-	VPADDW	Y3, Y4, Y3; \
-	VPSHUFB	Y9, Y3, output_register		// return color >> 8
+#define ALPHA_MUL(color_reg, alpha_reg, bitshift_reg, literal_128_reg, aux_reg, output_reg) \
+	VPMULLW    alpha_reg,        color_reg,    color_reg; \		// color *= alpha
+	VPADDW	   color_reg,  literal_128_reg,    color_reg; \		// color += 0x80U
+	VPSHUFB	bitshift_reg,        color_reg,      aux_reg; \		// color += color >> 8
+	VPADDW	   color_reg,          aux_reg,    color_reg; \
+	VPSHUFB	bitshift_reg,        color_reg,   output_reg		// return color >> 8
 
 #define LOAD_STATIC(iden, register) \
 	MOVQ	$iden<>(SB), AX; \
@@ -114,7 +113,7 @@ TEXT ·OverlayChunk(SB),NOSPLIT,$0
 	LOAD_STATIC(·red_shuffle_mask,     Y11)
 
 	// Y0  | aux                        | NOT USED
-	// Y1  | bg                         | loaded twice per loop (fg and bg)
+	// Y1  | pixels (argb)              | loaded twice per loop (fg and bg)
 	// Y2  | alpha_bg (words)           | loaded once per loop. Inverted (255-alpha) once per loop
 	// Y3  | aux                        | 
 	// Y4  | aux                        |
@@ -142,9 +141,12 @@ loop:
 	VPTEST	Y2, Y2
 	JZ	continue
 
-	ALPHA_MUL(Y11, Y15)	// RED
-	ALPHA_MUL(Y9, Y14)	// GREEN
-	ALPHA_MUL(Y10, Y13)	// BLUE
+	VPSHUFB	Y11, Y1, Y3	// extract the RED channel for each pixel into two words (zero extended)
+	ALPHA_MUL(Y3, Y2, Y9, Y8, Y4, Y15)
+	VPSHUFB	Y9, Y1, Y3	// extract the GREEN channel for each pixel into two words (zero extended)
+	ALPHA_MUL(Y3, Y2, Y9, Y8, Y4, Y14)
+	VPSHUFB	Y10, Y1, Y3	// extract the BLUE channel for each pixel into two words (zero extended)
+	ALPHA_MUL(Y3, Y2, Y9, Y8, Y4, Y13)
 
 	// start BACKGROUND colors:
 	// load 8 double words (pixels) into Y1
@@ -156,11 +158,14 @@ loop:
 	VPBROADCASTD X4, Y4
 	VPSUBW	Y2, Y4, Y2
 
-	ALPHA_MUL(Y11, Y3)	// RED
+	VPSHUFB	Y11, Y1, Y3	// extract the RED channel for each pixel into two words (zero extended)
+	ALPHA_MUL(Y3, Y2, Y9, Y8, Y4, Y3)
 	VPADDW Y3, Y15, Y15
-	ALPHA_MUL(Y9, Y3)	// GREEN
+	VPSHUFB	Y9, Y1, Y3	// extract the GREEN channel for each pixel into two words (zero extended)
+	ALPHA_MUL(Y3, Y2, Y9, Y8, Y4, Y3)
 	VPADDW Y3, Y14, Y14
-	ALPHA_MUL(Y10, Y3)	// BLUE
+	VPSHUFB	Y10, Y1, Y3	// extract the BLUE channel for each pixel into two words (zero extended)
+	ALPHA_MUL(Y3, Y2, Y9, Y8, Y4, Y3)
 	VPADDW Y3, Y13, Y13
 
 	//////// REPACK COLORS ////////
@@ -187,5 +192,97 @@ continue:
 
 	RET
 
+GLOBL ·alpha_pack_mask<>(SB), RODATA, $32
+DATA ·alpha_pack_mask<>+0(SB)/4,  $0x00808080
+DATA ·alpha_pack_mask<>+4(SB)/4,  $0x04808080
+DATA ·alpha_pack_mask<>+8(SB)/4,  $0x08808080
+DATA ·alpha_pack_mask<>+12(SB)/4, $0x0c808080
+DATA ·alpha_pack_mask<>+16(SB)/4, $0x10808080
+DATA ·alpha_pack_mask<>+20(SB)/4, $0x14808080
+DATA ·alpha_pack_mask<>+24(SB)/4, $0x18808080
+DATA ·alpha_pack_mask<>+28(SB)/4, $0x1c808080
 
 // func applyAlphaReductionASM(ptr *byte, delta uint8, length int)
+TEXT ·applyAlphaReductionASM(SB),NOSPLIT,$0
+	MOVQ	ptr+0(FP), R8
+	XORQ	R12, R12
+	MOVB	delta+8(FP), R12
+	MOVQ	len+16(FP), SI
+	SHRQ	$4, SI	// len /= 16
+
+	MOVQ	R8, R9
+	ADDQ	$32, R9
+
+	LOAD_STATIC(·alpha_shuffle_mask,   Y5)
+	LOAD_STATIC(·literal_128,          Y8)
+	LOAD_STATIC(·bitshift8_mask,       Y9)
+	LOAD_STATIC(·alpha_pack_mask,      Y10)
+
+	// fill a register with delta to perform the alpha multiply
+	VPXOR	Y11, Y11, Y11
+	MOVD	R12, X11
+	VPBROADCASTD X11, Y11
+
+	// fill a register with ff s in the place of the colors to AND later
+	MOVD $0x00ffffff, BX
+	MOVD	BX, X12
+	VPBROADCASTD X12, Y12
+
+	// Y0  | aux                        | NOT USED
+	// Y1  | pixels 1 (argb)            | 
+	// Y2  | pixels 2 (argb)            | 
+	// Y3  | aux                        | 
+	// Y4  | aux                        |
+	// Y5  | alpha_shuffle_mask         | DONT TOUCH
+	// Y6  | aux                        | NOT USED
+	// Y7  | aux                        | NOT USED
+	// Y8  | literal_128                | DONT TOUCH
+	// Y9  | bitshift8_mask             | DONT TOUCH
+	// Y10 | alpha pack mask            | DONT TOUCH
+	// Y11 | delta double words         | DONT TOUCH
+	// Y12 | color mask                 | DONT TOUCH
+	// Y13 | aux                        | 
+	// Y14 | alpha result               | 
+	// Y15 | alpha result               | 
+
+	XORQ	CX, CX
+
+loop:
+	// load 8 double words (pixels) into Y1
+	VMOVDQU	(R8), Y1
+	VMOVDQU	(R9), Y2
+
+	// extract the alpha channel for each pixel into two words (zero extended)
+	VPSHUFB	Y5, Y1, Y3
+
+	// if alpha of pixels are all zero, continue to next 8 pixels
+	VPTEST	Y3, Y3
+	JZ		next_8
+
+	ALPHA_MUL(Y3, Y11, Y9, Y8, Y4, Y14)
+	VPSHUFB	Y10, Y14, Y14
+
+	VPAND	Y1, Y12, Y1
+	VPOR	Y1, Y14, Y14
+	VMOVDQU	Y14, (R8)
+
+next_8:
+	VPSHUFB	Y5, Y2, Y3
+	VPTEST	Y3, Y3
+	JZ	continue
+	ALPHA_MUL(Y3, Y11, Y9, Y8, Y4, Y15)
+	VPSHUFB	Y10, Y15, Y15
+	VPAND	Y2, Y12, Y2
+	VPOR	Y2, Y15, Y15
+	VMOVDQU	Y15, (R9)
+
+continue:
+	// loopy loop
+	ADDQ	$64, R8
+	ADDQ	$64, R9
+	INCQ	CX
+	CMPQ	CX, SI
+	JNE	loop
+
+	RET
+

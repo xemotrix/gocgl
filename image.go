@@ -3,6 +3,7 @@ package gocgl
 import (
 	"fmt"
 	"os"
+	"sync"
 	"unsafe"
 
 	"golang.org/x/sys/cpu"
@@ -46,32 +47,44 @@ func (img *Image) SetPixel(x, y uint32, color uint32) {
 	if x >= img.Width || x < 0 || y >= img.Height || y < 0 {
 		return
 	}
-	alphaHex := color >> 24
-	if alphaHex == 0x00 {
+	alphaFg := uint16(color >> 24)
+	if alphaFg == 0x00 {
 		return
 	}
 
 	index := img.index(x, y)
-
-	alpha := float64(alphaHex) / 0xff
-	r := byte(color >> 16)
-	g := byte(color >> 8)
-	b := byte(color)
-
-	p0 := unsafe.Pointer(&img.Arr[0])
-	p := (unsafe.Pointer)(uintptr(p0) + uintptr(index))
-
-	bgra := *(*[4]byte)(p)
-
-	alpha0 := float64(bgra[3]) / 0xff
-	overAlpha := alpha + alpha0*(1-alpha)
-
-	*(*[4]byte)(p) = [4]byte{
-		byte(((float64(b) * alpha) + (float64(bgra[0]) * alpha0 * (1 - alpha))) / overAlpha),
-		byte(((float64(g) * alpha) + (float64(bgra[1]) * alpha0 * (1 - alpha))) / overAlpha),
-		byte(((float64(r) * alpha) + (float64(bgra[2]) * alpha0 * (1 - alpha))) / overAlpha),
-		byte(overAlpha * 0xff),
+	if alphaFg == 0xff {
+		*(*uint32)(unsafe.Pointer(&img.Arr[index])) = color
+		return
 	}
+
+	r := uint16((color >> 16) & 0xff)
+	g := uint16((color >> 8) & 0xff)
+	b := uint16((color) & 0xff)
+
+	bgra := *(*[4]byte)(unsafe.Pointer(&img.Arr[index]))
+	bBg := uint16(bgra[0])
+	gBg := uint16(bgra[1])
+	rBg := uint16(bgra[2])
+	alphaBg := uint16(bgra[3])
+
+	rRes := fastAlphaMult(alphaFg, r) + fastAlphaMult(fastAlphaMult(alphaBg, rBg), 0xff-alphaFg)
+	gRes := fastAlphaMult(alphaFg, g) + fastAlphaMult(fastAlphaMult(alphaBg, gBg), 0xff-alphaFg)
+	bRes := fastAlphaMult(alphaFg, b) + fastAlphaMult(fastAlphaMult(alphaBg, bBg), 0xff-alphaFg)
+	aRes := alphaFg + fastAlphaMult(alphaBg, 0xff-alphaFg)
+
+	*(*[4]byte)(unsafe.Pointer(&img.Arr[index])) = [4]byte{
+		byte(bRes),
+		byte(gRes),
+		byte(rRes),
+		byte(aRes),
+	}
+
+}
+
+func fastAlphaMult(alpha, color uint16) uint16 {
+	color = color*alpha + 0x80
+	return (color + color>>8) >> 8
 }
 
 func (img *Image) CopyFrom(other *Image) {
@@ -103,7 +116,17 @@ func (img *Image) overlay(other *Image) {
 
 func (img *Image) Overlay(other *Image) {
 	if cpu.X86.HasAVX2 {
-		OverlayChunk(&img.Arr[0], &other.Arr[0], len(img.Arr)/PIXBYTES)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			OverlayChunk(&img.Arr[0], &other.Arr[0], len(img.Arr)/PIXBYTES/2)
+			wg.Done()
+		}()
+		go func() {
+			OverlayChunk(&img.Arr[len(img.Arr)/2], &other.Arr[len(img.Arr)/2], len(img.Arr)/PIXBYTES/2)
+			wg.Done()
+		}()
+		wg.Wait()
 	} else {
 		img.overlay(other)
 	}
@@ -137,9 +160,20 @@ func (img *Image) applyAlphaReduction(delta uint8) {
 	}
 }
 
-func (img *Image) ApplyAlphaReductionASM(delta uint8) {
+func (img *Image) ApplyAlphaReduction(delta uint8) {
 	if cpu.X86.HasAVX2 {
-		applyAlphaReductionASM(&img.Arr[0], delta, len(img.Arr)/PIXBYTES)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			applyAlphaReductionASM(&img.Arr[0], delta, len(img.Arr)/PIXBYTES/2)
+		}()
+		go func() {
+			defer wg.Done()
+			applyAlphaReductionASM(&img.Arr[len(img.Arr)/2], delta, len(img.Arr)/PIXBYTES/2)
+		}()
+
+		wg.Wait()
 	} else {
 		img.applyAlphaReduction(delta)
 	}
