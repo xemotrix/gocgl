@@ -27,6 +27,20 @@ func (l *LineZ) Render(
 	l2d.RenderAA(img, color)
 }
 
+func (l *LineZ) RenderWidthOverwrite(
+	img *Image,
+	color uint32,
+	widthPx float64,
+) {
+	pp1 := l.P1.Project(img.Width, img.Height)
+	pp2 := l.P2.Project(img.Width, img.Height)
+
+	l2d := Line{
+		P1: pp1,
+		P2: pp2,
+	}
+	l2d.RenderWidthOverwrite(img, color, widthPx)
+}
 func (l *LineZ) RenderWidth(
 	img *Image,
 	color uint32,
