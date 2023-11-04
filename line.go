@@ -169,7 +169,64 @@ func (l *Line) RenderWidth(img *Image, color uint32, widthPx float64) {
 			}
 		}
 	}
+}
 
+func (l *Line) RenderWidthOverwrite(img *Image, color uint32, widthPx float64) {
+	p1 := l.P1
+	p2 := l.P2
+
+	x0 := p1.X
+	y0 := p1.Y
+	x1 := p2.X
+	y1 := p2.Y
+
+	if x0 < 0 || x1 < 0 || y0 < 0 || y1 < 0 {
+		return
+	}
+
+	steep := abs(y1-y0) > abs(x1-x0)
+
+	halfWidth := widthPx / 2
+
+	if steep {
+		if y0 > y1 {
+			x0, x1 = x1, x0
+			y0, y1 = y1, y0
+		}
+		for y := math.Floor(y0 - halfWidth - 1); y <= math.Ceil(y1+halfWidth+1); y++ {
+			xl := x0 + (x1-x0)*(y-y0)/(y1-y0)
+
+			for x := math.Floor(xl - halfWidth - 1); x <= math.Ceil(xl+halfWidth+1); x++ {
+				dist := l.DistanceTo(Point{X: x, Y: y})
+
+				if dist < halfWidth {
+					img.OverwritePixel(uint32(x), uint32(y), color)
+				} else if dist < (halfWidth + 1) {
+					colorm := modifyAlpha(color, 1-(dist-halfWidth))
+					img.OverwritePixel(uint32(x), uint32(y), colorm)
+				}
+			}
+		}
+	} else {
+		if x0 > x1 {
+			x0, x1 = x1, x0
+			y0, y1 = y1, y0
+		}
+		for x := math.Floor(x0 - halfWidth - 1); x <= math.Ceil(x1+halfWidth+1); x++ {
+			yl := y0 + (y1-y0)*(x-x0)/(x1-x0)
+
+			for y := math.Floor(yl - halfWidth - 1); y <= math.Ceil(yl+halfWidth+1); y++ {
+				dist := l.DistanceTo(Point{X: x, Y: y})
+
+				if dist < halfWidth {
+					img.OverwritePixel(uint32(x), uint32(y), color)
+				} else if dist < (halfWidth + 1) {
+					colorm := modifyAlpha(color, 1-(dist-halfWidth))
+					img.OverwritePixel(uint32(x), uint32(y), colorm)
+				}
+			}
+		}
+	}
 }
 
 // Xiaolin Wu's line algorithm
