@@ -171,7 +171,7 @@ func (l *Line) RenderWidth(img *Image, color uint32, widthPx float64) {
 	}
 }
 
-func (l *Line) RenderWidthOverwrite(img *Image, color uint32, widthPx float64) {
+func (l *Line) RenderWidthOverwriteBrightness(img *Image, color uint32, widthPx float64) {
 	p1 := l.P1
 	p2 := l.P2
 
@@ -199,10 +199,10 @@ func (l *Line) RenderWidthOverwrite(img *Image, color uint32, widthPx float64) {
 				dist := l.DistanceTo(Point{X: x, Y: y})
 
 				if dist < halfWidth {
-					img.OverwritePixel(uint32(x), uint32(y), color)
+					img.OverwritePixelBrightness(uint32(x), uint32(y), color)
 				} else if dist < (halfWidth + 1) {
 					colorm := modifyAlpha(color, 1-(dist-halfWidth))
-					img.OverwritePixel(uint32(x), uint32(y), colorm)
+					img.OverwritePixelBrightness(uint32(x), uint32(y), colorm)
 				}
 			}
 		}
@@ -218,10 +218,10 @@ func (l *Line) RenderWidthOverwrite(img *Image, color uint32, widthPx float64) {
 				dist := l.DistanceTo(Point{X: x, Y: y})
 
 				if dist < halfWidth {
-					img.OverwritePixel(uint32(x), uint32(y), color)
+					img.OverwritePixelBrightness(uint32(x), uint32(y), color)
 				} else if dist < (halfWidth + 1) {
 					colorm := modifyAlpha(color, 1-(dist-halfWidth))
-					img.OverwritePixel(uint32(x), uint32(y), colorm)
+					img.OverwritePixelBrightness(uint32(x), uint32(y), colorm)
 				}
 			}
 		}

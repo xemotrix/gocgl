@@ -43,11 +43,16 @@ func (img *Image) SetPixelZ(x, y uint32, z float64, color uint32) {
 	img.SetPixel(x, y, color)
 }
 
-func (img *Image) OverwritePixel(x, y uint32, color uint32) {
+func (img *Image) OverwritePixelBrightness(x, y uint32, color uint32) {
 	if x >= img.Width || x < 0 || y >= img.Height || y < 0 {
 		return
 	}
+
 	index := img.index(x, y)
+	alpha := img.Arr[index+3]
+	if alpha > byte(color>>24) {
+		return
+	}
 	*(*uint32)(unsafe.Pointer(&img.Arr[index])) = color
 }
 

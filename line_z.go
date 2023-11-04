@@ -27,7 +27,7 @@ func (l *LineZ) Render(
 	l2d.RenderAA(img, color)
 }
 
-func (l *LineZ) RenderWidthOverwrite(
+func (l *LineZ) RenderWidthOverwriteBrightness(
 	img *Image,
 	color uint32,
 	widthPx float64,
@@ -39,7 +39,7 @@ func (l *LineZ) RenderWidthOverwrite(
 		P1: pp1,
 		P2: pp2,
 	}
-	l2d.RenderWidthOverwrite(img, color, widthPx)
+	l2d.RenderWidthOverwriteBrightness(img, color, widthPx)
 }
 func (l *LineZ) RenderWidth(
 	img *Image,
