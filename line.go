@@ -185,7 +185,6 @@ func (l *Line) RenderWidthOverwrite(img *Image, color uint32, widthPx float64) {
 	}
 
 	steep := abs(y1-y0) > abs(x1-x0)
-
 	halfWidth := widthPx / 2
 
 	if steep {
