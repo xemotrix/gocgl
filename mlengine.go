@@ -30,12 +30,13 @@ func NewMLEngine(w, h, n uint32) *MLEngine {
 		layers[i] = NewImage(w, h)
 	}
 	return &MLEngine{
-		Window:   window,
-		Renderer: renderer,
-		Texture:  texture,
-		Image:    NewImage(w, h),
-		Layers:   layers,
-		Headless: false,
+		Window:      window,
+		Renderer:    renderer,
+		Texture:     texture,
+		Image:       NewImage(w, h),
+		WriterImage: make([]byte, w*h*3),
+		Layers:      layers,
+		Headless:    false,
 	}
 }
 func NewHeadlessMLEngine(w, h, n uint32) *MLEngine {
