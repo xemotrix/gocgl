@@ -88,8 +88,13 @@ DATA ·red_shuffle_mask<>+28(SB)/4, $0x8080801e
 
 #define ALPHA_MUL(color_reg, alpha_reg, bitshift_reg, literal_128_reg, aux_reg, output_reg) \
 	VPMULLW    alpha_reg,        color_reg,    color_reg; \		// color *= alpha
-	// ignore this because we want to floor, not to round
-	// VPADDW	   color_reg,  literal_128_reg,    color_reg; \		// color += 0x80U
+	VPADDW	   color_reg,  literal_128_reg,    color_reg; \		// color += 0x80U
+	VPSHUFB	bitshift_reg,        color_reg,      aux_reg; \		// color += color >> 8
+	VPADDW	   color_reg,          aux_reg,    color_reg; \
+	VPSHUFB	bitshift_reg,        color_reg,   output_reg		// return color >> 8
+
+#define ALPHA_MUL_FLOOR(color_reg, alpha_reg, bitshift_reg, aux_reg, output_reg) \
+	VPMULLW    alpha_reg,        color_reg,    color_reg; \		// color *= alpha
 	VPSHUFB	bitshift_reg,        color_reg,      aux_reg; \		// color += color >> 8
 	VPADDW	   color_reg,          aux_reg,    color_reg; \
 	VPSHUFB	bitshift_reg,        color_reg,   output_reg		// return color >> 8
@@ -215,7 +220,6 @@ TEXT ·applyAlphaReductionASM(SB),NOSPLIT,$0
 	ADDQ	$32, R9
 
 	LOAD_STATIC(·alpha_shuffle_mask,   Y5)
-	LOAD_STATIC(·literal_128,          Y8)
 	LOAD_STATIC(·bitshift8_mask,       Y9)
 	LOAD_STATIC(·alpha_pack_mask,      Y10)
 
@@ -237,7 +241,7 @@ TEXT ·applyAlphaReductionASM(SB),NOSPLIT,$0
 	// Y5  | alpha_shuffle_mask         | DONT TOUCH
 	// Y6  | aux                        | NOT USED
 	// Y7  | aux                        | NOT USED
-	// Y8  | literal_128                | DONT TOUCH
+	// Y8  | aux                        | NOT USED
 	// Y9  | bitshift8_mask             | DONT TOUCH
 	// Y10 | alpha pack mask            | DONT TOUCH
 	// Y11 | delta double words         | DONT TOUCH
@@ -260,7 +264,7 @@ loop:
 	VPTEST	Y3, Y3
 	JZ		next_8
 
-	ALPHA_MUL(Y3, Y11, Y9, Y8, Y4, Y14)
+	ALPHA_MUL_FLOOR(Y3, Y11, Y9, Y4, Y14)
 	VPSHUFB	Y10, Y14, Y14
 
 	VPAND	Y1, Y12, Y1
@@ -271,7 +275,7 @@ next_8:
 	VPSHUFB	Y5, Y2, Y3
 	VPTEST	Y3, Y3
 	JZ	continue
-	ALPHA_MUL(Y3, Y11, Y9, Y8, Y4, Y15)
+	ALPHA_MUL_FLOOR(Y3, Y11, Y9, Y4, Y15)
 	VPSHUFB	Y10, Y15, Y15
 	VPAND	Y2, Y12, Y2
 	VPOR	Y2, Y15, Y15

@@ -288,7 +288,7 @@ func main() {
 		nLines:       totLines,
 	}
 
-	engine := gocgl.NewHeadlessMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
+	engine := gocgl.NewMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
 	// engine := gocgl.NewMLEngine(WIDTH, HEIGHT, uint32(TOTAL_LAYERS))
 	engine.Layers[LAYER_ROAD].FillWithColor(COLOR_BG)
 	// var wg sync.WaitGroup
