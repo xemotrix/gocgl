@@ -88,7 +88,8 @@ DATA ·red_shuffle_mask<>+28(SB)/4, $0x8080801e
 
 #define ALPHA_MUL(color_reg, alpha_reg, bitshift_reg, literal_128_reg, aux_reg, output_reg) \
 	VPMULLW    alpha_reg,        color_reg,    color_reg; \		// color *= alpha
-	VPADDW	   color_reg,  literal_128_reg,    color_reg; \		// color += 0x80U
+	// ignore this because we want to floor, not to round
+	// VPADDW	   color_reg,  literal_128_reg,    color_reg; \		// color += 0x80U
 	VPSHUFB	bitshift_reg,        color_reg,      aux_reg; \		// color += color >> 8
 	VPADDW	   color_reg,          aux_reg,    color_reg; \
 	VPSHUFB	bitshift_reg,        color_reg,   output_reg		// return color >> 8

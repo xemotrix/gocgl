@@ -3,7 +3,6 @@ package gocgl
 import (
 	"fmt"
 	"os"
-	"sync"
 	"unsafe"
 
 	"golang.org/x/sys/cpu"
@@ -129,17 +128,7 @@ func (img *Image) overlay(other *Image) {
 
 func (img *Image) Overlay(other *Image) {
 	if cpu.X86.HasAVX2 {
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			OverlayChunk(&img.Arr[0], &other.Arr[0], len(img.Arr)/PIXBYTES/2)
-			wg.Done()
-		}()
-		go func() {
-			OverlayChunk(&img.Arr[len(img.Arr)/2], &other.Arr[len(img.Arr)/2], len(img.Arr)/PIXBYTES/2)
-			wg.Done()
-		}()
-		wg.Wait()
+		OverlayChunk(&img.Arr[0], &other.Arr[0], len(img.Arr)/PIXBYTES)
 	} else {
 		img.overlay(other)
 	}
@@ -175,18 +164,7 @@ func (img *Image) applyAlphaReduction(delta uint8) {
 
 func (img *Image) ApplyAlphaReduction(delta uint8) {
 	if cpu.X86.HasAVX2 {
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			applyAlphaReductionASM(&img.Arr[0], delta, len(img.Arr)/PIXBYTES/2)
-		}()
-		go func() {
-			defer wg.Done()
-			applyAlphaReductionASM(&img.Arr[len(img.Arr)/2], delta, len(img.Arr)/PIXBYTES/2)
-		}()
-
-		wg.Wait()
+		applyAlphaReductionASM(&img.Arr[0], delta, len(img.Arr)/PIXBYTES)
 	} else {
 		img.applyAlphaReduction(delta)
 	}
