@@ -1,3 +1,5 @@
+// +build amd64
+
 #include "textflag.h"
 #include "go_asm.h"
 

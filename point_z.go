@@ -66,3 +66,10 @@ func (p *PointZ) Distance(other PointZ) float64 {
 	dz := p.Z - other.Z
 	return math.Sqrt(dx*dx + dy*dy + dz*dz)
 }
+
+func (p *PointZ) DistanceSQ(other PointZ) float64 {
+	dx := p.X - other.X
+	dy := p.Y - other.Y
+	dz := p.Z - other.Z
+	return dx*dx + dy*dy + dz*dz
+}

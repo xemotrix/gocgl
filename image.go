@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"unsafe"
-
-	"golang.org/x/sys/cpu"
 )
 
 const PIXBYTES = 4
@@ -28,6 +26,12 @@ func NewImage(width, height uint32) *Image {
 
 func (img *Image) index(x, y uint32) uint32 {
 	return (y*img.Width + x) * PIXBYTES
+}
+func (img *Image) iindex(i uint32) (uint32, uint32) {
+	idx := i / PIXBYTES
+	x := idx % img.Width
+	y := idx / img.Width
+	return x, y
 }
 
 func (img *Image) SetPixelZ(x, y uint32, z float64, color uint32) {
@@ -53,6 +57,44 @@ func (img *Image) OverwritePixelBrightness(x, y uint32, color uint32) {
 		return
 	}
 	*(*uint32)(unsafe.Pointer(&img.Arr[index])) = color
+}
+
+func (img *Image) RasterTranslation(x, y, dx, dy float64, dst *Image) {
+	for xi := int(x); xi < int(x+float64(img.Width)*dx); xi++ {
+		for yi := int(y); yi < int(y+float64(img.Height)*dy); yi++ {
+			xo := float64(xi-int(x)) / dx
+			yo := float64(yi-int(y)) / dy
+			dst.SetPixel(uint32(xi), uint32(yi), img.GetPixel(uint32(xo), uint32(yo)))
+		}
+	}
+}
+
+func (img *Image) ProjectOnTo(other *Image, xOffset, yOffset, zOffset float64) {
+	factor := 1 + zOffset
+	for i := 0; i < len(other.Arr); i += PIXBYTES {
+		ox, oy := other.iindex(uint32(i))
+		ix := float64(ox) - float64(other.Width/2)
+		iy := float64(oy) - float64(other.Height/2)
+		ix -= float64(xOffset) * float64(other.Width) / 2
+		iy -= float64(yOffset) * float64(other.Height) / 2
+		ix *= factor
+		iy *= factor
+		ix += float64(other.Width / 2)
+		iy += float64(other.Height / 2)
+		pix := img.GetPixel(uint32(ix), uint32(iy))
+		if pix>>24 == 0 {
+			continue
+		}
+		*(*uint32)(unsafe.Pointer(&other.Arr[i])) = pix
+	}
+}
+
+func (img *Image) GetPixel(x, y uint32) uint32 {
+	if x >= img.Width || x < 0 || y >= img.Height || y < 0 {
+		return 0
+	}
+	index := img.index(x, y)
+	return *(*uint32)(unsafe.Pointer(&img.Arr[index]))
 }
 
 func (img *Image) SetPixel(x, y uint32, color uint32) {
@@ -91,7 +133,6 @@ func (img *Image) SetPixel(x, y uint32, color uint32) {
 		byte(rRes),
 		byte(aRes),
 	}
-
 }
 
 func fastAlphaMult(alpha, color uint16) uint16 {
@@ -127,11 +168,7 @@ func (img *Image) overlay(other *Image) {
 }
 
 func (img *Image) Overlay(other *Image) {
-	if cpu.X86.HasAVX2 {
-		OverlayChunk(&img.Arr[0], &other.Arr[0], len(img.Arr)/PIXBYTES)
-	} else {
-		img.overlay(other)
-	}
+	Overlay(img, other)
 }
 
 func (img *Image) FillWithColor(color uint32) {
@@ -163,11 +200,7 @@ func (img *Image) applyAlphaReduction(delta uint8) {
 }
 
 func (img *Image) ApplyAlphaReduction(delta uint8) {
-	if cpu.X86.HasAVX2 {
-		applyAlphaReductionASM(&img.Arr[0], delta, len(img.Arr)/PIXBYTES)
-	} else {
-		img.applyAlphaReduction(delta)
-	}
+	ApplyAlphaReduction(img, delta)
 }
 
 func (img *Image) WritePPM(filePath string) error {
