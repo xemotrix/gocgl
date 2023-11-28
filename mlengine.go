@@ -89,6 +89,7 @@ func (e *MLEngine) VideoWriter(filePath string, w, h uint32, wg *sync.WaitGroup)
 }
 
 func (e *MLEngine) writeVideo(filePath string, ch chan *Image, w, h uint32, wg *sync.WaitGroup) {
+	auxFilePath := filePath[:len(filePath)-4] + "_aux.mp4"
 	ffmpeg := exec.Command(
 		"ffmpeg",
 		"-y",
@@ -98,7 +99,7 @@ func (e *MLEngine) writeVideo(filePath string, ch chan *Image, w, h uint32, wg *
 		"-r", "30",
 		"-i", "-",
 		"-vcodec", "libx264",
-		filePath,
+		auxFilePath,
 	)
 	ffmpegStdin, err := ffmpeg.StdinPipe()
 	if err != nil {
@@ -132,6 +133,30 @@ func (e *MLEngine) writeVideo(filePath string, ch chan *Image, w, h uint32, wg *
 	if err != nil {
 		panic(err)
 	}
+
+	changeCodec := exec.Command(
+		"ffmpeg",
+		"-y",
+		"-i", auxFilePath,
+		"-vf", "format=yuv420p",
+		"-c:v", "libx264",
+		"-preset", "medium",
+		"-profile:v", "baseline",
+		"-c:a", "aac",
+		filePath,
+	)
+
+	err = changeCodec.Run()
+	if err != nil {
+		panic(err)
+	}
+
+	rmCmd := exec.Command("rm", auxFilePath)
+	err = rmCmd.Run()
+	if err != nil {
+		panic(err)
+	}
+	wg.Done()
 }
 
 func (e *MLEngine) LoadBytes(img *Image) {
