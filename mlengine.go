@@ -146,14 +146,29 @@ func (e *MLEngine) writeVideo(filePath string, ch chan *Image, w, h uint32, wg *
 		filePath,
 	)
 
+	codecStderr, err := changeCodec.StderrPipe()
+	if err != nil {
+		panic(err)
+	}
+	defer codecStderr.Close()
+
 	err = changeCodec.Run()
 	if err != nil {
+		eBytes, _ := ioutil.ReadAll(codecStderr)
+		fmt.Println(string(eBytes))
 		panic(err)
 	}
 
 	rmCmd := exec.Command("rm", auxFilePath)
+	rmStderr, err := rmCmd.StderrPipe()
+	if err != nil {
+		panic(err)
+	}
+
 	err = rmCmd.Run()
 	if err != nil {
+		eBytes, _ := ioutil.ReadAll(rmStderr)
+		fmt.Println(string(eBytes))
 		panic(err)
 	}
 	wg.Done()
