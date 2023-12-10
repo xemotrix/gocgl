@@ -82,13 +82,24 @@ func (e *MLEngine) Destroy() {
 	e.Texture.Destroy()
 }
 
-func (e *MLEngine) VideoWriter(filePath string, w, h uint32, wg *sync.WaitGroup) chan *Image {
+func (e *MLEngine) VideoWriter(
+	filePath string,
+	fps int,
+	w, h uint32,
+	wg *sync.WaitGroup,
+) chan *Image {
 	ch := make(chan *Image)
-	go e.writeVideo(filePath, ch, w, h, wg)
+	go e.writeVideo(filePath, fps, ch, w, h, wg)
 	return ch
 }
 
-func (e *MLEngine) writeVideo(filePath string, ch chan *Image, w, h uint32, wg *sync.WaitGroup) {
+func (e *MLEngine) writeVideo(
+	filePath string,
+	fps int,
+	ch chan *Image,
+	w, h uint32,
+	wg *sync.WaitGroup,
+) {
 	auxFilePath := filePath[:len(filePath)-4] + "_aux.mp4"
 	ffmpeg := exec.Command(
 		"ffmpeg",
@@ -96,7 +107,7 @@ func (e *MLEngine) writeVideo(filePath string, ch chan *Image, w, h uint32, wg *
 		"-f", "rawvideo",
 		"-pix_fmt", "rgb24",
 		"-s", fmt.Sprintf("%dx%d", w, h),
-		"-r", "30",
+		"-r", fmt.Sprintf("%d", fps),
 		"-i", "-",
 		"-vcodec", "libx264",
 		auxFilePath,
