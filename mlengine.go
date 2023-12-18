@@ -87,8 +87,8 @@ func (e *MLEngine) VideoWriter(
 	fps int,
 	w, h uint32,
 	wg *sync.WaitGroup,
-) chan *Image {
-	ch := make(chan *Image)
+) chan []byte {
+	ch := make(chan []byte, 16)
 	go e.writeVideo(filePath, fps, ch, w, h, wg)
 	return ch
 }
@@ -96,7 +96,7 @@ func (e *MLEngine) VideoWriter(
 func (e *MLEngine) writeVideo(
 	filePath string,
 	fps int,
-	ch chan *Image,
+	ch chan []byte,
 	w, h uint32,
 	wg *sync.WaitGroup,
 ) {
@@ -133,7 +133,7 @@ func (e *MLEngine) writeVideo(
 			fmt.Println(string(eBytes))
 			panic(err)
 		}
-		wg.Done()
+		// wg.Done()
 	}
 
 	err = ffmpegStdin.Close()
@@ -151,6 +151,7 @@ func (e *MLEngine) writeVideo(
 		"-i", auxFilePath,
 		"-vf", "format=yuv420p",
 		"-c:v", "libx264",
+		// "-b:v", "1000k",
 		"-preset", "medium",
 		"-profile:v", "baseline",
 		"-c:a", "aac",
@@ -185,10 +186,15 @@ func (e *MLEngine) writeVideo(
 	wg.Done()
 }
 
-func (e *MLEngine) LoadBytes(img *Image) {
-	for i := 0; i < len(img.Arr); i += PIXBYTES {
-		e.WriterImage[i/PIXBYTES*3] = img.Arr[i+2]
-		e.WriterImage[i/PIXBYTES*3+1] = img.Arr[i+1]
-		e.WriterImage[i/PIXBYTES*3+2] = img.Arr[i]
+func (e *MLEngine) LoadBytes(img []byte) {
+	for i := 0; i < len(img); i += PIXBYTES {
+		e.WriterImage[i/PIXBYTES*3] = img[i+2]
+		e.WriterImage[i/PIXBYTES*3+1] = img[i+1]
+		e.WriterImage[i/PIXBYTES*3+2] = img[i]
 	}
+	// for i := 0; i < len(img.Arr); i += PIXBYTES {
+	// 	e.WriterImage[i/PIXBYTES*3] = img.Arr[i+2]
+	// 	e.WriterImage[i/PIXBYTES*3+1] = img.Arr[i+1]
+	// 	e.WriterImage[i/PIXBYTES*3+2] = img.Arr[i]
+	// }
 }
