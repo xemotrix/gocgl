@@ -151,7 +151,7 @@ func (e *MLEngine) writeVideo(
 		"-i", auxFilePath,
 		"-vf", "format=yuv420p",
 		"-c:v", "libx264",
-		// "-b:v", "1000k",
+		"-b:v", "1000k",
 		"-preset", "medium",
 		"-profile:v", "baseline",
 		"-c:a", "aac",
